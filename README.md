@@ -266,7 +266,3 @@ movie-reservation-system/
 - Input validation via `express-validator`
 
 ---
-
-## License
-
-MIT — built as a portfolio / learning project. Feel free to fork and extend (payments, QR tickets, multi-auditorium layouts, etc.).
