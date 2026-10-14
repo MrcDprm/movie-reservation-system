@@ -6,6 +6,7 @@ import helmet from 'helmet';
 
 import { loadUser } from './auth/middleware.js';
 import { createAuthRouter } from './auth/routes.js';
+import { createBookingRouter } from './booking/routes.js';
 import { loadConfig } from './config.js';
 import { getPrisma } from './db.js';
 import { errorHandler, notFound } from './errors.js';
@@ -44,6 +45,7 @@ export function createApp(config = loadConfig(), deps = {}) {
 
   app.use('/api', loadUser(db));
   app.use('/api/auth', createAuthRouter({ db, mailer, config }));
+  app.use('/api', createBookingRouter({ db }));
 
   app.use('/api', notFound);
   app.use(errorHandler);
