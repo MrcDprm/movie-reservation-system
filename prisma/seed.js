@@ -52,7 +52,7 @@ const HALLS = [
 
 const MOVIES = [
   {
-    slug: 'dr-caligari', titleTr: "Dr. Caligari'nin Muayenehanesi", titleEn: 'The Cabinet of Dr. Caligari',
+    slug: 'dr-caligari', titleTr: "Dr. Caligari'nin Muayene\u00adhanesi", titleEn: 'The Cabinet of Dr. Caligari',
     originalTitle: 'Das Cabinet des Dr. Caligari', year: 1920, director: 'Robert Wiene', runtimeMin: 76,
     summaryTr: 'Bir panayır hipnozcusu ve uyurgezer Cesare, küçük bir kasabada işlenen cinayetlerin ardındaki karanlık sırrı saklar. Eğri büyrü dekorlarıyla Alman dışavurumculuğunun simgesi.',
     summaryEn: 'A fairground hypnotist and the sleepwalker Cesare hide a dark secret behind a series of murders in a small town. The crooked sets made it the icon of German Expressionism.',

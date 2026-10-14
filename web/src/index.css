@@ -1,1 +1,96 @@
-@import "tailwindcss";
+@import '@fontsource-variable/fraunces';
+@import '@fontsource-variable/manrope';
+@import 'tailwindcss';
+
+/* Seans: a dark auditorium with velvet seats; the light theme is a printed programme. */
+
+:root {
+  --bg: #121011;
+  --surface: #1b1718;
+  --surface-2: #241f20;
+  --line: #352d2e;
+  --ink: #f1e9dc;
+  --ink-2: #c9bdab;
+  --ink-3: #8f8476;
+  --velvet: #b8413a;
+  --velvet-strong: #d4574e;
+  --on-velvet: #fff7ee;
+  --gold: #d9b26a;
+  --ok: #6fbf8a;
+  --warn: #e0a84f;
+  --danger: #ef7d73;
+  --focus: 0 0 0 3px rgba(217, 178, 106, 0.45);
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  --bg: #f3ece0;
+  --surface: #fbf7ef;
+  --surface-2: #efe6d6;
+  --line: #ddd1bd;
+  --ink: #1d1714;
+  --ink-2: #4c4137;
+  --ink-3: #7a6d5e;
+  --velvet: #8e2a24;
+  --velvet-strong: #74211c;
+  --on-velvet: #fff7ee;
+  --gold: #8a6420;
+  --ok: #2f7a4b;
+  --warn: #9a6512;
+  --danger: #b0342b;
+  --focus: 0 0 0 3px rgba(142, 42, 36, 0.3);
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-velvet: var(--velvet);
+  --color-velvet-strong: var(--velvet-strong);
+  --color-on-velvet: var(--on-velvet);
+  --color-gold: var(--gold);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+  --font-display: 'Fraunces Variable', Georgia, serif;
+  --font-sans: 'Manrope Variable', system-ui, sans-serif;
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  @apply bg-bg text-ink font-sans antialiased;
+  min-height: 100vh;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+  border-radius: 6px;
+}
+
+/* Typographic poster: two colours from the database, no image. */
+.poster {
+  background: var(--paper);
+  color: var(--poster-ink);
+  font-family: var(--font-display);
+}
+.poster-frame {
+  border: 1.5px solid color-mix(in srgb, var(--poster-ink) 45%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
