@@ -7,7 +7,9 @@
 // 3. If the money arrives for a booking that is no longer a hold (released, replaced, expired
 //    and re-sold), it is refunded automatically.
 import { AppError } from '../errors.js';
+import { buildTicketEmail } from '../mail.js';
 import { CHECKOUT_MINUTES } from '../payments.js';
+import { qrPng, ticketCode } from '../tickets.js';
 
 const seatLabel = (seat) => `${seat.row}${seat.number}`;
 
@@ -56,18 +58,50 @@ export async function startCheckout(db, payments, { bookingId, user, lang = 'tr'
       quantity: seats.length,
     }],
   });
-  await db.booking.update({ where: { id: booking.id }, data: { stripeSessionId: checkout.id } });
+  await db.booking.update({ where: { id: booking.id }, data: { stripeSessionId: checkout.id, stripeLang: lang } });
   return { url: checkout.url };
 }
 
-async function markPaid(db, payments, session, now) {
+// Sent once, right after the booking becomes PAID. A failure is logged, not thrown: the payment
+// is valid either way and the tickets are on the site.
+async function sendTickets(db, ctx, bookingId) {
+  const booking = await db.booking.findUnique({
+    where: { id: bookingId },
+    include: { user: true, showtime: { include: { movie: true, hall: true } }, seats: { include: { hallSeat: true } } },
+  });
+  const lang = booking.stripeLang === 'en' ? 'en' : 'tr';
+  const seats = booking.seats.sort((a, b) => a.hallSeat.row.localeCompare(b.hallSeat.row) || a.hallSeat.number - b.hallSeat.number);
+  const attachments = await Promise.all(
+    seats.map(async (s) => ({ filename: `bilet-${seatLabel(s.hallSeat)}.png`, content: await qrPng(ticketCode(s.id, ctx.config.TICKET_SECRET)) })),
+  );
+  const message = buildTicketEmail({
+    lang,
+    name: booking.user.name,
+    title: lang === 'en' ? booking.showtime.movie.titleEn : booking.showtime.movie.titleTr,
+    when: formatTime(booking.showtime.startsAt, lang),
+    hall: booking.showtime.hall.name,
+    seats: seats.map((s) => seatLabel(s.hallSeat)),
+    link: `${ctx.config.APP_ORIGIN}/bookings/${booking.id}`,
+    appName: ctx.config.APP_NAME,
+  });
+  try {
+    await ctx.mailer.send({ to: booking.user.email, ...message, attachments });
+  } catch (err) {
+    console.error('[tickets] e-mail failed for booking', booking.id, err?.message);
+  }
+}
+
+async function markPaid(db, payments, session, now, ctx) {
   const bookingId = session.metadata?.bookingId;
   if (!bookingId || session.payment_status !== 'paid') return 'ignored';
   const { count } = await db.booking.updateMany({
     where: { id: bookingId, status: 'HOLD' },
     data: { status: 'PAID', paidAt: now, stripeSessionId: session.id },
   });
-  if (count === 1) return 'paid';
+  if (count === 1) {
+    if (ctx) await sendTickets(db, ctx, bookingId);
+    return 'paid';
+  }
 
   const booking = await db.booking.findUnique({ where: { id: bookingId }, select: { status: true } });
   if (booking?.status === 'PAID') return 'already_paid'; // a repeated event
@@ -86,12 +120,13 @@ async function releaseExpired(db, session) {
   return 'released';
 }
 
-export async function handleStripeEvent(db, payments, event, now = new Date()) {
+// ctx = { mailer, config } for the ticket e-mail.
+export async function handleStripeEvent(db, payments, event, ctx, now = new Date()) {
   const session = event.data?.object ?? {};
   switch (event.type) {
     case 'checkout.session.completed':
     case 'checkout.session.async_payment_succeeded':
-      return markPaid(db, payments, session, now);
+      return markPaid(db, payments, session, now, ctx);
     case 'checkout.session.expired':
     case 'checkout.session.async_payment_failed':
       return releaseExpired(db, session);
@@ -107,7 +142,8 @@ const bookingInclude = {
   seats: { select: { id: true, checkedInAt: true, hallSeat: { select: { row: true, number: true, kind: true } } } },
 };
 
-const present = (b) => ({
+// `secret` signs the QR codes; only a paid booking has them.
+const present = (b, secret) => ({
   id: b.id,
   status: b.status,
   totalCents: b.totalCents,
@@ -115,21 +151,27 @@ const present = (b) => ({
   paidAt: b.paidAt,
   showtime: b.showtime,
   seats: b.seats
-    .map((s) => ({ id: s.id, label: seatLabel(s.hallSeat), kind: s.hallSeat.kind, checkedIn: Boolean(s.checkedInAt) }))
+    .map((s) => ({
+      id: s.id,
+      label: seatLabel(s.hallSeat),
+      kind: s.hallSeat.kind,
+      checkedIn: Boolean(s.checkedInAt),
+      code: b.status === 'PAID' ? ticketCode(s.id, secret) : null,
+    }))
     .sort((a, b2) => a.label.localeCompare(b2.label, 'tr', { numeric: true })),
 });
 
-export async function listBookings(db, userId) {
+export async function listBookings(db, userId, secret) {
   const bookings = await db.booking.findMany({
     where: { userId, status: 'PAID' },
     include: bookingInclude,
     orderBy: { showtime: { startsAt: 'desc' } },
   });
-  return bookings.map(present);
+  return bookings.map((b) => present(b, secret));
 }
 
-export async function getBooking(db, { bookingId, userId }) {
+export async function getBooking(db, { bookingId, userId }, secret) {
   const booking = await db.booking.findUnique({ where: { id: bookingId }, include: bookingInclude });
   if (!booking || booking.userId !== userId) throw new AppError(404, 'not_found');
-  return present(booking);
+  return present(booking, secret);
 }

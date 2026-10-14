@@ -143,6 +143,7 @@ model Booking {
   holdExpiresAt   DateTime
   totalCents      Int
   stripeSessionId String?       @unique
+  stripeLang      String? // language of the checkout, used for the ticket e-mail
   paidAt          DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt

@@ -56,17 +56,54 @@ ${lines.map((line) => `<p>${escapeHtml(line)}</p>`).join('\n')}
   return { subject: t.subject, text, html };
 }
 
+const TICKET_TEXTS = {
+  tr: {
+    subject: (title) => `Biletlerin: ${title}`,
+    hello: (name) => `Merhaba ${name}, ödemen alındı. İyi seyirler!`,
+    seats: 'Koltuklar',
+    qr: 'Her koltuğun QR kodu ekte. Kapıda telefonundan göstermen yeterli; biletlerini sitede de görebilirsin.',
+    button: 'Biletlerimi göster',
+  },
+  en: {
+    subject: (title) => `Your tickets: ${title}`,
+    hello: (name) => `Hello ${name}, your payment was received. Enjoy the film!`,
+    seats: 'Seats',
+    qr: 'The QR code of each seat is attached. Show it on your phone at the door; your tickets are on the site too.',
+    button: 'Show my tickets',
+  },
+};
+
+export function buildTicketEmail({ lang, name, title, when, hall, seats, link, appName }) {
+  const t = TICKET_TEXTS[lang] ?? TICKET_TEXTS.tr;
+  const details = [title, when, hall, `${t.seats}: ${seats.join(', ')}`];
+  const text = [t.hello(name), '', ...details, '', t.qr, link, '', appName].join('\n');
+  const html = `<!doctype html><html><body style="font-family:Georgia,serif;color:#1b1712;background:#f4efe6;padding:24px">
+<div style="max-width:520px;margin:0 auto;background:#fffdf8;padding:28px;border-radius:8px">
+<p style="font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:#8a6a2c">${escapeHtml(appName)}</p>
+<p>${escapeHtml(t.hello(name))}</p>
+<p style="font-size:20px;margin:16px 0 4px"><strong>${escapeHtml(title)}</strong></p>
+${details.slice(1).map((d) => `<p style="margin:2px 0">${escapeHtml(d)}</p>`).join('\n')}
+<p style="margin-top:16px">${escapeHtml(t.qr)}</p>
+<p><a href="${escapeHtml(link)}" style="display:inline-block;background:#7a2e22;color:#fff;padding:12px 20px;border-radius:6px;text-decoration:none">${escapeHtml(t.button)}</a></p>
+</div></body></html>`;
+  return { subject: t.subject(title), text, html };
+}
+
 export function createMailer(config, fetchImpl = fetch) {
   return {
-    async send({ to, subject, text, html }) {
+    // attachments: [{ filename, content: Buffer }]
+    async send({ to, subject, text, html, attachments = [] }) {
       if (!config.RESEND_API_KEY) {
-        console.log(`[mail] to=${to} subject="${subject}"\n${text}`);
+        console.log(`[mail] to=${to} subject="${subject}" attachments=${attachments.length}\n${text}`);
         return;
       }
       const response = await fetchImpl('https://api.resend.com/emails', {
         method: 'POST',
         headers: { Authorization: `Bearer ${config.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from: config.EMAIL_FROM, to, subject, text, html }),
+        body: JSON.stringify({
+          from: config.EMAIL_FROM, to, subject, text, html,
+          attachments: attachments.map((a) => ({ filename: a.filename, content: a.content.toString('base64') })),
+        }),
       });
       if (!response.ok) {
         // The status is enough to debug; the response body could echo the address.

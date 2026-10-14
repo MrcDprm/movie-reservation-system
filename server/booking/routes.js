@@ -4,7 +4,8 @@ import { z } from 'zod';
 
 import { AppError } from '../errors.js';
 import { enforce } from '../rateLimit.js';
-import { requireUser } from '../auth/middleware.js';
+import { requireRole, requireUser } from '../auth/middleware.js';
+import { checkIn } from '../tickets.js';
 import { getBooking, listBookings, startCheckout } from './checkout.js';
 import { getMovie, getSeatMap, holdSeats, listMovies, releaseHold, MAX_SEATS } from './service.js';
 
@@ -17,7 +18,7 @@ function requireVerified(req, res, next) {
   next();
 }
 
-export function createBookingRouter({ db, payments }) {
+export function createBookingRouter({ db, payments, config }) {
   const router = Router();
 
   // A replaced or released hold must not stay payable on Stripe. Best effort: if closing fails,
@@ -73,12 +74,19 @@ export function createBookingRouter({ db, payments }) {
   });
 
   router.get('/bookings', requireUser, async (req, res) => {
-    res.json({ bookings: await listBookings(db(), req.user.id) });
+    res.json({ bookings: await listBookings(db(), req.user.id, config.TICKET_SECRET) });
   });
 
   router.get('/bookings/:bookingId', requireUser, async (req, res) => {
     if (!id.safeParse(req.params.bookingId).success) throw new AppError(404, 'not_found');
-    res.json({ booking: await getBooking(db(), { bookingId: req.params.bookingId, userId: req.user.id }) });
+    res.json({ booking: await getBooking(db(), { bookingId: req.params.bookingId, userId: req.user.id }, config.TICKET_SECRET) });
+  });
+
+  // The door: staff scan a QR code. The answer says what to do (let in or not) and why.
+  router.post('/checkin', requireRole('STAFF', 'ADMIN'), async (req, res) => {
+    const code = typeof req.body?.code === 'string' ? req.body.code.slice(0, 200) : '';
+    await enforce(db(), [{ key: `checkin:user:${req.user.id}`, limit: 600, windowSeconds: 600 }]);
+    res.json(await checkIn(db(), code, config.TICKET_SECRET));
   });
 
   return router;

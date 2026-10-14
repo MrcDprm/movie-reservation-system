@@ -16,13 +16,17 @@ const schema = z
     // Stripe test mode: sk_test_... and the webhook endpoint's signing secret (whsec_...).
     STRIPE_SECRET_KEY: z.string().startsWith('sk_test_').optional(),
     STRIPE_WEBHOOK_SECRET: z.string().optional(),
+    // Signs the QR codes on tickets. Long and random in production (openssl rand -base64 48).
+    TICKET_SECRET: z.string().min(32).optional(),
   })
   .superRefine((c, ctx) => {
     if (c.NODE_ENV !== 'production') return;
-    for (const key of ['RESEND_API_KEY', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET']) {
+    for (const key of ['RESEND_API_KEY', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'TICKET_SECRET']) {
       if (!c[key]) ctx.addIssue({ code: 'custom', path: [key], message: 'required in production' });
     }
   });
+
+const stripUndefined = (object) => Object.fromEntries(Object.entries(object).filter(([, v]) => v !== undefined));
 
 export function loadConfig(env = process.env) {
   const parsed = schema.safeParse(env);
@@ -30,5 +34,6 @@ export function loadConfig(env = process.env) {
     const fields = parsed.error.issues.map((i) => i.path.join('.')).join(', ');
     throw new Error(`Invalid configuration: ${fields}`);
   }
-  return parsed.data;
+  // A fixed secret is fine on a developer machine; production must set its own (checked above).
+  return { TICKET_SECRET: 'local-development-ticket-secret-not-for-production', ...stripUndefined(parsed.data) };
 }

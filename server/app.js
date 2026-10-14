@@ -37,7 +37,7 @@ export function createApp(config = loadConfig(), deps = {}) {
     } catch {
       return res.status(400).json({ error: 'bad_signature' });
     }
-    const result = await handleStripeEvent(db(), payments, event);
+    const result = await handleStripeEvent(db(), payments, event, { mailer, config });
     return res.json({ received: true, result });
   });
 
@@ -62,7 +62,7 @@ export function createApp(config = loadConfig(), deps = {}) {
 
   app.use('/api', loadUser(db));
   app.use('/api/auth', createAuthRouter({ db, mailer, config }));
-  app.use('/api', createBookingRouter({ db, payments }));
+  app.use('/api', createBookingRouter({ db, payments, config }));
 
   app.use('/api', notFound);
   app.use(errorHandler);
