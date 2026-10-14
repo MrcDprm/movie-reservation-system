@@ -39,6 +39,7 @@ describe('seat map and holds', { skip: !hasTestDatabase && 'no .env.test' }, () 
     app = createApp(loadConfig({ NODE_ENV: 'test', APP_ORIGIN: 'https://sinema.example' }), {
       prisma,
       mailer: { send: async () => {} },
+      payments: { expireCheckout: async () => {} },
     });
     const hall = await prisma.hall.findUnique({ where: { slug: 'buyuk-salon' } });
     showtime = await prisma.showtime.findFirst({ where: { hallId: hall.id, startsAt: { gt: new Date() } }, orderBy: { startsAt: 'asc' } });
@@ -128,7 +129,7 @@ describe('seat map and holds', { skip: !hasTestDatabase && 'no .env.test' }, () 
     const ayse = await userAgent('ayse@test.local');
     const mehmet = await userAgent('mehmet@test.local');
     const longAgo = new Date(Date.now() - 20 * 60_000);
-    const old = await holdSeats(prisma, { showtimeId: showtime.id, userId: ayse.user.id, seatIds: [seat('D4')] }, longAgo);
+    const { booking: old } = await holdSeats(prisma, { showtimeId: showtime.id, userId: ayse.user.id, seatIds: [seat('D4')] }, longAgo);
 
     assert.equal(statusOf((await map(mehmet.agent)).body, 'D4'), 'free');
     const taken = await hold(mehmet.agent, ['D4']);

@@ -13,10 +13,15 @@ const schema = z
     // Resend (https://resend.com). Without a key, e-mails are printed to the console.
     RESEND_API_KEY: z.string().optional(),
     EMAIL_FROM: z.string().default('Klasik Sinema <bilet@miracdeprem.com>'),
+    // Stripe test mode: sk_test_... and the webhook endpoint's signing secret (whsec_...).
+    STRIPE_SECRET_KEY: z.string().startsWith('sk_test_').optional(),
+    STRIPE_WEBHOOK_SECRET: z.string().optional(),
   })
-  .refine((c) => c.NODE_ENV !== 'production' || c.RESEND_API_KEY, {
-    path: ['RESEND_API_KEY'],
-    message: 'required in production',
+  .superRefine((c, ctx) => {
+    if (c.NODE_ENV !== 'production') return;
+    for (const key of ['RESEND_API_KEY', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET']) {
+      if (!c[key]) ctx.addIssue({ code: 'custom', path: [key], message: 'required in production' });
+    }
   });
 
 export function loadConfig(env = process.env) {

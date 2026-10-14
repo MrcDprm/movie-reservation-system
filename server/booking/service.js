@@ -81,6 +81,7 @@ export async function getSeatMap(db, showtimeId, userId, now = new Date()) {
 
 // Reserve `seatIds` for the user for HOLD_MINUTES. Replaces the user's earlier hold on the
 // same showtime. Throws 409 seat_taken if any seat is held or sold by someone else.
+// Returns the new booking and the Stripe pages of replaced holds, which the caller closes.
 export async function holdSeats(db, { showtimeId, userId, seatIds }, now = new Date()) {
   const unique = [...new Set(seatIds)];
   if (unique.length !== seatIds.length) throw new AppError(400, 'duplicate_seats');
@@ -94,10 +95,12 @@ export async function holdSeats(db, { showtimeId, userId, seatIds }, now = new D
   if (seats.length !== unique.length) throw new AppError(400, 'invalid_seats'); // a seat of another hall
 
   const expiresAt = new Date(now.getTime() + HOLD_MINUTES * 60_000);
+  let replacedCheckouts = [];
   try {
-    return await db.$transaction(async (tx) => {
+    const booking = await db.$transaction(async (tx) => {
       // 1. Give up my previous hold on this showtime.
-      const mine = await tx.booking.findMany({ where: { userId, showtimeId, status: 'HOLD' }, select: { id: true } });
+      const mine = await tx.booking.findMany({ where: { userId, showtimeId, status: 'HOLD' }, select: { id: true, stripeSessionId: true } });
+      replacedCheckouts = mine.map((b) => b.stripeSessionId).filter(Boolean);
       if (mine.length) {
         const ids = mine.map((b) => b.id);
         await tx.bookingSeat.deleteMany({ where: { bookingId: { in: ids } } });
@@ -123,6 +126,7 @@ export async function holdSeats(db, { showtimeId, userId, seatIds }, now = new D
         select: { id: true, holdExpiresAt: true, totalCents: true, seats: { select: { hallSeatId: true } } },
       });
     });
+    return { booking, replacedCheckouts };
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
       throw new AppError(409, 'seat_taken');
@@ -131,8 +135,9 @@ export async function holdSeats(db, { showtimeId, userId, seatIds }, now = new D
   }
 }
 
+// Returns the booking's Stripe page id (if any), which the caller closes.
 export async function releaseHold(db, { bookingId, userId }) {
-  const booking = await db.booking.findUnique({ where: { id: bookingId }, select: { userId: true, status: true } });
+  const booking = await db.booking.findUnique({ where: { id: bookingId }, select: { userId: true, status: true, stripeSessionId: true } });
   // Someone else's booking looks exactly like a missing one: ids are not confirmed to strangers.
   if (!booking || booking.userId !== userId) throw new AppError(404, 'not_found');
   if (booking.status !== 'HOLD') throw new AppError(409, 'not_a_hold');
@@ -140,4 +145,5 @@ export async function releaseHold(db, { bookingId, userId }) {
     db.bookingSeat.deleteMany({ where: { bookingId } }),
     db.booking.update({ where: { id: bookingId }, data: { status: 'CANCELLED' } }),
   ]);
+  return booking.stripeSessionId;
 }

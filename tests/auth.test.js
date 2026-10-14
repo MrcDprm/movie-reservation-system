@@ -87,7 +87,7 @@ describe('accounts', { skip: !hasTestDatabase && 'no .env.test' }, () => {
   });
 
   test('cookie is Secure in production', async () => {
-    app = makeApp({ NODE_ENV: 'production', RESEND_API_KEY: 'test' });
+    app = makeApp({ NODE_ENV: 'production', RESEND_API_KEY: 'test', STRIPE_SECRET_KEY: 'sk_test_x', STRIPE_WEBHOOK_SECRET: 'whsec_x' });
     const agent = request.agent(app);
     await register(agent);
     const verified = await agent.post('/api/auth/verify-email').send({ token: tokenFromMail() });
