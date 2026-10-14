@@ -56,7 +56,7 @@ A cinema booking site for a small two-hall cinema that shows silent-era classics
 - **E-mail:** [Resend](https://resend.com)
 - **QR codes:** `qrcode` to draw them, `jsQR` to read them from the camera
 - **Validation:** zod on every request
-- **Tests:** `node --test` and supertest, 70 tests against a separate test database
+- **Tests:** `node --test` and supertest, 73 tests against a separate test database
 - **Hosting:** Vercel, with a daily cron job and a strict Content Security Policy
 
 ## Installation

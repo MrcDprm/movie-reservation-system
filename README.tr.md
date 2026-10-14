@@ -56,7 +56,7 @@ Sessiz sinema klasikleri gösteren iki salonlu küçük bir sinema için bilet s
 - **E-posta:** [Resend](https://resend.com)
 - **QR kod:** çizmek için `qrcode`, kameradan okumak için `jsQR`
 - **Doğrulama:** her istekte zod
-- **Testler:** `node --test` ve supertest; ayrı bir test veritabanında 70 test
+- **Testler:** `node --test` ve supertest; ayrı bir test veritabanında 73 test
 - **Yayın:** Vercel; günlük cron işi ve sıkı bir Content Security Policy ile
 
 ## Kurulum ve Çalıştırma
