@@ -40,7 +40,7 @@ test('password rules', () => {
 
 test('e-mail escapes the name the user typed', () => {
   const mail = buildEmail({
-    kind: 'verify', lang: 'tr', name: '<img src=x onerror=alert(1)>', link: 'https://x.test/verify-email?token=abc', appName: 'Klasik Sinema',
+    kind: 'verify', lang: 'tr', name: '<img src=x onerror=alert(1)>', link: 'https://x.test/verify-email?token=abc', appName: 'Seans',
   });
   assert.doesNotMatch(mail.html, /<img/);
   assert.match(mail.html, /&lt;img/);

@@ -9,10 +9,10 @@ const schema = z
     DATABASE_URL: z.string().url().optional(),
     // The public address of the site; the only origin allowed to call the API, used in e-mail links.
     APP_ORIGIN: z.string().url().default('http://localhost:5173'),
-    APP_NAME: z.string().default('Klasik Sinema'),
+    APP_NAME: z.string().default('Seans'),
     // Resend (https://resend.com). Without a key, e-mails are printed to the console.
     RESEND_API_KEY: z.string().optional(),
-    EMAIL_FROM: z.string().default('Klasik Sinema <bilet@miracdeprem.com>'),
+    EMAIL_FROM: z.string().default('Seans <bilet@miracdeprem.com>'),
     // Stripe test mode: sk_test_... and the webhook endpoint's signing secret (whsec_...).
     STRIPE_SECRET_KEY: z.string().startsWith('sk_test_').optional(),
     STRIPE_WEBHOOK_SECRET: z.string().optional(),
