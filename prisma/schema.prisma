@@ -1,0 +1,84 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// The connection URL lives in prisma.config.js (Prisma 7).
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ReservationStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  password     String
+  role         Role          @default(USER)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  reservations Reservation[]
+}
+
+model Movie {
+  id          String     @id @default(cuid())
+  title       String
+  description String
+  posterUrl   String
+  genre       String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  showtimes   Showtime[]
+}
+
+model Showtime {
+  id           String        @id @default(cuid())
+  movieId      String
+  movie        Movie         @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  startTime    DateTime
+  endTime      DateTime
+  capacity     Int
+  price        Decimal       @db.Decimal(10, 2)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  seats        Seat[]
+  reservations Reservation[]
+
+  @@index([movieId])
+  @@index([startTime])
+}
+
+model Reservation {
+  id         String            @id @default(cuid())
+  userId     String
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  showtimeId String
+  showtime   Showtime          @relation(fields: [showtimeId], references: [id], onDelete: Cascade)
+  status     ReservationStatus @default(CONFIRMED)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  seats      Seat[]
+
+  @@index([userId])
+  @@index([showtimeId])
+  @@index([status])
+}
+
+model Seat {
+  id            String       @id @default(cuid())
+  showtimeId    String
+  showtime      Showtime     @relation(fields: [showtimeId], references: [id], onDelete: Cascade)
+  seatNumber    Int
+  reservationId String?
+  reservation   Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+
+  @@unique([showtimeId, seatNumber])
+  @@index([reservationId])
+}

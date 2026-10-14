@@ -1,38 +1,18 @@
-# Dependencies
+# Dependencies and build output
 node_modules/
-**/node_modules/
-
-# Environment
-.env
-.env.local
-.env.*.local
-
-# Build outputs
 dist/
-build/
-**/dist/
-**/build/
 
-# Prisma
-backend/prisma/*.db
-backend/prisma/*.db-journal
+# Secrets
+.env
+.env.*
+!.env.example
 
-# Logs
-logs/
+# Vercel
+.vercel/
+
+# Logs and OS files
 *.log
-npm-debug.log*
-
-# OS / IDE
 .DS_Store
 Thumbs.db
-.idea/
 .vscode/
-*.swp
-*.swo
-
-# Coverage / test
-coverage/
-.nyc_output/
-
-# Docker volumes (local)
-postgres-data/
+.idea/

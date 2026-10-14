@@ -1,0 +1,39 @@
+{
+  "name": "movie-reservation-system",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cinema booking: real seat maps, timed seat holds, Stripe checkout and QR tickets.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.js",
+    "dev:api": "node --watch --env-file-if-exists=.env server/dev.js",
+    "dev:web": "vite",
+    "build": "prisma generate && vite build",
+    "test": "node --test --env-file-if-exists=.env.test \"tests/**/*.test.js\"",
+    "db:generate": "prisma generate"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "1.2.0",
+    "@prisma/adapter-neon": "7.10.0",
+    "@prisma/client": "7.10.0",
+    "@tanstack/react-query": "5.104.2",
+    "cookie-parser": "1.4.7",
+    "express": "5.3.0",
+    "helmet": "8.3.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-router-dom": "7.18.4",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.3",
+    "@vitejs/plugin-react": "6.1.2",
+    "prisma": "7.10.0",
+    "supertest": "7.3.1",
+    "tailwindcss": "4.3.3",
+    "vite": "8.3.4"
+  }
+}
