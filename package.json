@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Cinema booking: real seat maps, timed seat holds, Stripe checkout and QR tickets.",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.18"
   },
   "scripts": {
     "dev": "node scripts/dev.js",
