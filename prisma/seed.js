@@ -145,7 +145,8 @@ export async function seed(prisma) {
   }
   const movies = [];
   for (const movie of MOVIES) {
-    movies.push(await prisma.movie.upsert({ where: { slug: movie.slug }, update: movie, create: movie }));
+    // update: {} - running the seed again must not undo what the admin changed in a film.
+    movies.push(await prisma.movie.upsert({ where: { slug: movie.slug }, update: {}, create: movie }));
   }
   const { count } = await prisma.showtime.createMany({
     data: plannedShowtimes(halls, movies),

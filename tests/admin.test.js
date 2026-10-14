@@ -150,4 +150,93 @@ describe('admin', { skip: !hasTestDatabase && 'no .env.test' }, () => {
     assert.equal(await prisma.showtime.count({ where: { id: showtimeId } }), 0);
     await admin.agent.delete(`/api/admin/showtimes/${showtimeId}`).expect(404);
   });
+
+  // --- Films ---
+
+  const film = (extra = {}) => ({
+    titleTr: 'Cadılık',
+    titleEn: 'Häxan: Witchcraft Through the Ages',
+    originalTitle: 'Häxan',
+    year: 1922,
+    director: 'Benjamin Christensen',
+    runtimeMin: 91,
+    summaryTr: 'Orta Çağ cadı avlarını canlandıran belgesel-kurgu.',
+    summaryEn: 'A docu-fiction on medieval witch hunts.',
+    posterInk: '#F2E6D0',
+    posterPaper: '#1d1a24',
+    ...extra,
+  });
+
+  test('a film is added, shown publicly, edited and deleted', async () => {
+    const { body: created } = await admin.agent.post('/api/admin/movies').send(film({ slug: 'hacked', id: 'x' })).expect(201);
+    assert.equal(created.movie.slug, 'haxan-witchcraft-through-the-ages-1922'); // made by the server, not taken from the body
+    const { body: pub } = await request(app).get(`/api/movies/${created.movie.slug}`).expect(200);
+    assert.equal(pub.movie.titleTr, 'Cadılık');
+
+    // The same title and year again gets its own address.
+    const { body: twin } = await admin.agent.post('/api/admin/movies').send(film()).expect(201);
+    assert.equal(twin.movie.slug, 'haxan-witchcraft-through-the-ages-1922-2');
+
+    await admin.agent.put(`/api/admin/movies/${created.movie.id}`).send(film({ titleTr: 'Cadılar', posterInk: '#ffffff' })).expect(200);
+    const saved = await prisma.movie.findUnique({ where: { id: created.movie.id } });
+    assert.equal(saved.titleTr, 'Cadılar');
+    assert.equal(saved.posterInk, '#ffffff');
+    assert.equal(saved.slug, created.movie.slug); // the address never changes
+
+    const { body: list } = await admin.agent.get('/api/admin/movies').expect(200);
+    assert.ok(list.movies.some((m) => m.id === created.movie.id && m.upcomingShows === 0));
+
+    await admin.agent.delete(`/api/admin/movies/${created.movie.id}`).expect(204);
+    await request(app).get(`/api/movies/${created.movie.slug}`).expect(404);
+    await admin.agent.put(`/api/admin/movies/${created.movie.id}`).send(film()).expect(404);
+  });
+
+  test('film input is checked field by field', async () => {
+    for (const bad of [
+      { titleTr: '' },
+      { titleTr: '   ' },
+      { titleEn: 'x'.repeat(121) },
+      { director: 'Bad\u0000Name' },
+      { year: 1700 },
+      { year: '1922' },
+      { runtimeMin: 0 },
+      { runtimeMin: 999 },
+      { posterInk: 'red' },
+      { posterPaper: '#12345' },
+      { summaryEn: undefined },
+    ]) {
+      await admin.agent.post('/api/admin/movies').send(film(bad)).expect(400);
+    }
+    // Unreadable poster: grey on grey.
+    assert.equal((await admin.agent.post('/api/admin/movies').send(film({ posterInk: '#777777', posterPaper: '#888888' })).expect(400)).body.error, 'low_contrast');
+    const customer = await agentFor('CUSTOMER');
+    await customer.agent.post('/api/admin/movies').send(film()).expect(403);
+  });
+
+  test('a film with tickets cannot be deleted, and a longer runtime cannot crash into the next show', async () => {
+    const { body: created } = await admin.agent.post('/api/admin/movies').send(film({ runtimeMin: 60 })).expect(201);
+    const movieId = created.movie.id;
+    const first = freeSlot(5, 5); // 05:00 UTC
+    const { body: show } = await create(body(first, { movieId })).expect(201);
+    // Another film in the same hall 90 minutes later: fine for a 60-minute film.
+    await create(body(new Date(first.getTime() + 90 * 60_000))).expect(201);
+
+    const longer = await admin.agent.put(`/api/admin/movies/${movieId}`).send(film({ runtimeMin: 80 })).expect(409);
+    assert.equal(longer.body.error, 'runtime_clash');
+    await admin.agent.put(`/api/admin/movies/${movieId}`).send(film({ runtimeMin: 70 })).expect(200); // 70 + 20 cleaning still fits
+
+    const seatRow = await prisma.hallSeat.findFirst({ where: { hallId: options.halls[0].id } });
+    await prisma.booking.create({
+      data: {
+        userId: admin.user.id,
+        showtimeId: show.showtime.id,
+        status: 'PAID',
+        holdExpiresAt: new Date(),
+        paidAt: new Date(),
+        totalCents: 16000,
+        seats: { create: [{ showtimeId: show.showtime.id, hallSeatId: seatRow.id }] },
+      },
+    });
+    assert.equal((await admin.agent.delete(`/api/admin/movies/${movieId}`).expect(409)).body.error, 'movie_has_bookings');
+  });
 });

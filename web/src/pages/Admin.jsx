@@ -2,9 +2,10 @@
 // The server checks the role, the hall clash and the input; this page only shows the answers.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 
 import { Notice } from '../components/Form.jsx';
+import AdminMovies from './AdminMovies.jsx';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import { dayKey, formatDay, formatPercent, formatPrice, formatTime } from '../lib/format.js';
@@ -90,7 +91,7 @@ function NewShowtime({ options, from, onCreated }) {
         <select name="movieId" required className={field}>
           {options.movies.map((m) => (
             <option key={m.id} value={m.id}>
-              {lang === 'en' ? m.titleEn : m.titleTr.replace(/­/g, '')} ({t('movie.minutes', { n: m.runtimeMin })})
+              {lang === 'en' ? m.titleEn : m.titleTr.replace(/\u00ad/g, '')} ({t('movie.minutes', { n: m.runtimeMin })})
             </option>
           ))}
         </select>
@@ -133,27 +134,58 @@ function NewShowtime({ options, from, onCreated }) {
   );
 }
 
+const TABS = ['showtimes', 'movies'];
+
 export default function Admin() {
-  const { lang, t } = usePrefs();
+  const { t } = usePrefs();
   const { user, loading } = useAuth();
+  const [params, setParams] = useSearchParams();
+  const tab = TABS.includes(params.get('tab')) ? params.get('tab') : 'showtimes';
+
+  if (!loading && !user) return <Navigate to="/login?next=%2Fadmin" replace />;
+  if (loading) return null;
+  if (user.role !== 'ADMIN') return <p className="mx-auto max-w-xl px-4 py-16 text-center text-ink-2">{t('admin.only')}</p>;
+
+  return (
+    <div className="mx-auto max-w-6xl px-4 pt-8 sm:px-6 sm:pt-12">
+      <h1 className="font-display text-4xl font-semibold tracking-tight sm:text-5xl">{t('admin.title')}</h1>
+      <div className="mt-6 flex gap-1 border-b border-line" role="tablist">
+        {TABS.map((name) => (
+          <button
+            key={name}
+            type="button"
+            role="tab"
+            aria-selected={tab === name}
+            onClick={() => setParams(name === 'showtimes' ? {} : { tab: name })}
+            className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-semibold ${
+              tab === name ? 'border-velvet text-ink' : 'border-transparent text-ink-3 hover:text-ink'
+            }`}
+          >
+            {t(`admin.tab.${name}`)}
+          </button>
+        ))}
+      </div>
+      <div className="mt-6" role="tabpanel">
+        {tab === 'movies' ? <AdminMovies /> : <Showtimes />}
+      </div>
+    </div>
+  );
+}
+
+function Showtimes() {
+  const { lang, t } = usePrefs();
   const queryClient = useQueryClient();
   const [from, setFrom] = useState(() => dayKey(new Date()));
-  const isAdmin = user?.role === 'ADMIN';
 
-  const options = useQuery({ queryKey: ['admin', 'options'], queryFn: () => api('/admin/options'), enabled: isAdmin });
+  const options = useQuery({ queryKey: ['admin', 'options'], queryFn: () => api('/admin/options') });
   const list = useQuery({
     queryKey: ['admin', 'showtimes', from],
     queryFn: () => api(`/admin/showtimes?from=${from}&days=${DAYS}`),
-    enabled: isAdmin,
   });
   const remove = useMutation({
     mutationFn: (id) => api(`/admin/showtimes/${id}`, { method: 'DELETE' }),
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['admin', 'showtimes'] }),
   });
-
-  if (!loading && !user) return <Navigate to="/login?next=%2Fadmin" replace />;
-  if (loading) return null;
-  if (!isAdmin) return <p className="mx-auto max-w-xl px-4 py-16 text-center text-ink-2">{t('admin.only')}</p>;
 
   const shows = list.data?.showtimes ?? [];
   const sold = shows.reduce((n, s) => n + s.sold, 0);
@@ -163,17 +195,15 @@ export default function Admin() {
   for (const show of shows) byDay.set(dayKey(show.startsAt), [...(byDay.get(dayKey(show.startsAt)) ?? []), show]);
 
   const onDelete = (show) => {
-    const title = lang === 'en' ? show.movie.titleEn : show.movie.titleTr.replace(/­/g, '');
+    const title = lang === 'en' ? show.movie.titleEn : show.movie.titleTr.replace(/\u00ad/g, '');
     if (window.confirm(t('admin.confirmDelete', { title, time: `${formatDay(show.startsAt, lang)} ${formatTime(show.startsAt, lang)}` }))) {
       remove.mutate(show.id);
     }
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-4 pt-8 sm:px-6 sm:pt-12">
-      <h1 className="font-display text-4xl font-semibold tracking-tight sm:text-5xl">{t('admin.title')}</h1>
-
-      <div className="mt-6 flex flex-wrap items-center gap-2">
+    <div>
+      <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={() => setFrom(addDays(from, -DAYS))} className="rounded-lg border border-line px-3 py-2 text-sm font-semibold">
           ← {t('admin.prevWeek')}
         </button>
