@@ -76,7 +76,11 @@ export default function Showtime() {
   });
   const checkoutMutation = useMutation({
     mutationFn: () => api(`/holds/${hold.bookingId}/checkout`, { method: 'POST', body: { lang } }),
-    onSuccess: ({ url }) => window.location.assign(url), // Stripe's own page
+    onSuccess: ({ url }) => {
+      // Only ever leave the site for Stripe's own checkout page.
+      if (new URL(url).origin === 'https://checkout.stripe.com') window.location.assign(url);
+      else setMessage({ kind: 'error', text: t('error.internal_error') });
+    },
     onError: (err) => {
       setMessage({ kind: 'error', text: t(`error.${err.code}`) });
       refresh();
