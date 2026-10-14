@@ -28,7 +28,7 @@ test('a ticket code is read back only with the right secret and untouched', () =
 });
 
 test('production refuses to start without a ticket secret', () => {
-  const env = { NODE_ENV: 'production', RESEND_API_KEY: 'r', STRIPE_SECRET_KEY: 'sk_test_x', STRIPE_WEBHOOK_SECRET: 'w' };
+  const env = { NODE_ENV: 'production', RESEND_API_KEY: 'r', STRIPE_SECRET_KEY: 'sk_test_x', STRIPE_WEBHOOK_SECRET: 'w', CRON_SECRET: 'c'.repeat(32) };
   assert.throws(() => loadConfig(env), /TICKET_SECRET/);
   assert.equal(loadConfig({ ...env, TICKET_SECRET: SECRET }).TICKET_SECRET, SECRET);
 });

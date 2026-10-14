@@ -2,6 +2,7 @@
 // Safe to run again: halls and films are upserted, showtimes are only added where missing.
 //   npm run db:seed          (main database, .env)
 import { getPrisma } from '../server/db.js';
+import { plannedShowtimes, topUpShowtimes } from '../server/programme.js';
 
 // --- Halls -------------------------------------------------------------------------------
 
@@ -110,31 +111,8 @@ const MOVIES = [
 ];
 
 // --- Showtimes ---------------------------------------------------------------------------
-
-const DAYS_AHEAD = 14;
-// Istanbul is UTC+3 all year.
-const SLOTS = [
-  { hourUtc: 11, minute: 0, priceCents: 15000 }, // 14:00, matinee
-  { hourUtc: 14, minute: 30, priceCents: 15000 }, // 17:30
-  { hourUtc: 18, minute: 0, priceCents: 18000 }, // 21:00
-];
-
-export function plannedShowtimes(halls, movies, from = new Date()) {
-  const start = Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate());
-  const planned = [];
-  for (let day = 0; day < DAYS_AHEAD; day++) {
-    halls.forEach((hall, h) => {
-      SLOTS.forEach((slot, s) => {
-        const startsAt = new Date(start + day * 86_400_000 + slot.hourUtc * 3_600_000 + slot.minute * 60_000);
-        if (startsAt <= from) return;
-        // Rotate films so each hall and day has a different programme.
-        const movie = movies[(day * SLOTS.length + s + h * 3) % movies.length];
-        planned.push({ hallId: hall.id, movieId: movie.id, startsAt, priceCents: slot.priceCents });
-      });
-    });
-  }
-  return planned;
-}
+// Planned by the same code the daily cron job uses (server/programme.js).
+export { plannedShowtimes };
 
 export async function seed(prisma) {
   const halls = [];
@@ -148,11 +126,7 @@ export async function seed(prisma) {
     // update: {} - running the seed again must not undo what the admin changed in a film.
     movies.push(await prisma.movie.upsert({ where: { slug: movie.slug }, update: {}, create: movie }));
   }
-  const { count } = await prisma.showtime.createMany({
-    data: plannedShowtimes(halls, movies),
-    skipDuplicates: true, // the (hallId, startsAt) pair is unique
-  });
-  return { halls: halls.length, movies: movies.length, showtimesAdded: count };
+  return { halls: halls.length, movies: movies.length, showtimesAdded: await topUpShowtimes(prisma) };
 }
 
 // Run only when started as a script (`node prisma/seed.js`), not when a test imports it.

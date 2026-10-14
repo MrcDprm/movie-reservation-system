@@ -18,10 +18,12 @@ const schema = z
     STRIPE_WEBHOOK_SECRET: z.string().optional(),
     // Signs the QR codes on tickets. Long and random in production (openssl rand -base64 48).
     TICKET_SECRET: z.string().min(32).optional(),
+    // Vercel sends it with the daily cron call (openssl rand -hex 32).
+    CRON_SECRET: z.string().min(32).optional(),
   })
   .superRefine((c, ctx) => {
     if (c.NODE_ENV !== 'production') return;
-    for (const key of ['RESEND_API_KEY', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'TICKET_SECRET']) {
+    for (const key of ['RESEND_API_KEY', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'TICKET_SECRET', 'CRON_SECRET']) {
       if (!c[key]) ctx.addIssue({ code: 'custom', path: [key], message: 'required in production' });
     }
   });

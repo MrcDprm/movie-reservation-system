@@ -9,6 +9,7 @@ import { handleStripeEvent } from './booking/checkout.js';
 import { createAdminRouter } from './admin/routes.js';
 import { createAuthRouter } from './auth/routes.js';
 import { createBookingRouter } from './booking/routes.js';
+import { createCronRouter } from './cron.js';
 import { loadConfig } from './config.js';
 import { getPrisma } from './db.js';
 import { errorHandler, notFound } from './errors.js';
@@ -65,6 +66,7 @@ export function createApp(config = loadConfig(), deps = {}) {
   app.use('/api/auth', createAuthRouter({ db, mailer, config }));
   app.use('/api', createBookingRouter({ db, payments, config }));
   app.use('/api/admin', createAdminRouter({ db }));
+  app.use('/api/cron', createCronRouter({ db, config }));
 
   app.use('/api', notFound);
   app.use(errorHandler);
