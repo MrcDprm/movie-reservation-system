@@ -7,78 +7,165 @@ datasource db {
   provider = "postgresql"
 }
 
+// --- Accounts ---
+
 enum Role {
-  USER
+  CUSTOMER
+  STAFF // checks tickets at the door
   ADMIN
 }
 
-enum ReservationStatus {
-  CONFIRMED
-  CANCELLED
+model User {
+  id              String       @id @default(cuid())
+  email           String       @unique // stored lower-cased
+  passwordHash    String
+  name            String
+  role            Role         @default(CUSTOMER)
+  emailVerifiedAt DateTime?
+  createdAt       DateTime     @default(now())
+  sessions        Session[]
+  emailTokens     EmailToken[]
+  bookings        Booking[]
 }
 
-model User {
-  id           String        @id @default(cuid())
-  email        String        @unique
-  password     String
-  role         Role          @default(USER)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  reservations Reservation[]
+// A login. The cookie holds a random token; only its SHA-256 hash is stored, so a leaked
+// database does not leak usable sessions. Deleting the row logs the user out at once.
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
+
+enum EmailTokenType {
+  VERIFY_EMAIL
+  RESET_PASSWORD
+}
+
+// One-time links sent by e-mail; hashed like sessions.
+model EmailToken {
+  id        String         @id @default(cuid())
+  tokenHash String         @unique
+  type      EmailTokenType
+  userId    String
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime       @default(now())
+
+  @@index([userId, type])
+}
+
+// --- Catalogue ---
 
 model Movie {
-  id          String     @id @default(cuid())
-  title       String
-  description String
-  posterUrl   String
-  genre       String
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  showtimes   Showtime[]
+  id            String     @id @default(cuid())
+  slug          String     @unique
+  titleTr       String
+  titleEn       String
+  originalTitle String
+  year          Int
+  director      String
+  runtimeMin    Int
+  summaryTr     String
+  summaryEn     String
+  // Typographic poster (no image files): two colours used by the poster component.
+  posterInk     String
+  posterPaper   String
+  createdAt     DateTime   @default(now())
+  showtimes     Showtime[]
+}
+
+model Hall {
+  id        String     @id @default(cuid())
+  slug      String     @unique
+  name      String
+  seats     HallSeat[]
+  showtimes Showtime[]
+}
+
+enum SeatKind {
+  STANDARD
+  ACCESSIBLE // wheelchair space
+}
+
+// A physical seat. `col` is the position on the drawn map, so aisles are just missing columns.
+model HallSeat {
+  id      String        @id @default(cuid())
+  hallId  String
+  hall    Hall          @relation(fields: [hallId], references: [id], onDelete: Cascade)
+  row     String // "A", "B", ...
+  number  Int // seat number printed on the ticket
+  col     Int
+  kind    SeatKind      @default(STANDARD)
+  tickets BookingSeat[]
+
+  @@unique([hallId, row, number])
+  @@index([hallId])
 }
 
 model Showtime {
-  id           String        @id @default(cuid())
-  movieId      String
-  movie        Movie         @relation(fields: [movieId], references: [id], onDelete: Cascade)
-  startTime    DateTime
-  endTime      DateTime
-  capacity     Int
-  price        Decimal       @db.Decimal(10, 2)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  seats        Seat[]
-  reservations Reservation[]
+  id         String        @id @default(cuid())
+  movieId    String
+  movie      Movie         @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  hallId     String
+  hall       Hall          @relation(fields: [hallId], references: [id], onDelete: Restrict)
+  startsAt   DateTime
+  priceCents Int // money as whole kuruş: no rounding errors
+  bookings   Booking[]
+  seats      BookingSeat[]
 
+  @@unique([hallId, startsAt]) // one show at a time per hall (overlaps are checked in code)
   @@index([movieId])
-  @@index([startTime])
+  @@index([startsAt])
 }
 
-model Reservation {
-  id         String            @id @default(cuid())
-  userId     String
-  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  showtimeId String
-  showtime   Showtime          @relation(fields: [showtimeId], references: [id], onDelete: Cascade)
-  status     ReservationStatus @default(CONFIRMED)
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
-  seats      Seat[]
+// --- Bookings ---
+
+enum BookingStatus {
+  HOLD // seats reserved for a few minutes while the customer pays
+  PAID
+  CANCELLED
+  EXPIRED // the hold ran out before payment
+}
+
+model Booking {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  showtimeId      String
+  showtime        Showtime      @relation(fields: [showtimeId], references: [id], onDelete: Cascade)
+  status          BookingStatus @default(HOLD)
+  holdExpiresAt   DateTime
+  totalCents      Int
+  stripeSessionId String?       @unique
+  paidAt          DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  seats           BookingSeat[]
 
   @@index([userId])
-  @@index([showtimeId])
-  @@index([status])
+  @@index([showtimeId, status])
 }
 
-model Seat {
-  id            String       @id @default(cuid())
-  showtimeId    String
-  showtime      Showtime     @relation(fields: [showtimeId], references: [id], onDelete: Cascade)
-  seatNumber    Int
-  reservationId String?
-  reservation   Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+// A seat in a booking; for a paid booking this row is the ticket.
+// The unique (showtimeId, hallSeatId) pair is what makes double booking impossible: two
+// customers inserting the same seat at the same moment cannot both succeed, whatever the
+// application code does. Rows of expired or cancelled bookings are deleted to free the seat.
+model BookingSeat {
+  id          String    @id @default(cuid())
+  bookingId   String
+  booking     Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  showtimeId  String
+  showtime    Showtime  @relation(fields: [showtimeId], references: [id], onDelete: Cascade)
+  hallSeatId  String
+  hallSeat    HallSeat  @relation(fields: [hallSeatId], references: [id], onDelete: Restrict)
+  checkedInAt DateTime?
 
-  @@unique([showtimeId, seatNumber])
-  @@index([reservationId])
+  @@unique([showtimeId, hallSeatId])
+  @@index([bookingId])
 }

@@ -13,7 +13,9 @@
     "dev:web": "vite",
     "build": "prisma generate && vite build",
     "test": "node --test --env-file-if-exists=.env.test \"tests/**/*.test.js\"",
-    "db:generate": "prisma generate"
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev && prisma generate",
+    "db:seed": "node --env-file=.env prisma/seed.js"
   },
   "dependencies": {
     "@neondatabase/serverless": "1.2.0",
