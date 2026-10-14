@@ -52,7 +52,10 @@ export function createAuthRouter({ db, mailer, config }) {
   const mail = (user, kind, lang, url) =>
     mailer.send({ to: user.email, ...buildEmail({ kind, lang, name: user.name, link: url, appName: config.APP_NAME }) });
 
-  const logIn = async (res, userId) => {
+  // A new session every time; the one this browser had before (if any) is ended.
+  const logIn = async (req, res, userId) => {
+    const previous = req.cookies?.[SESSION_COOKIE];
+    if (previous) await db().session.deleteMany({ where: { tokenHash: hashToken(previous) } });
     res.cookie(SESSION_COOKIE, await createSession(db(), userId), cookieOptions);
   };
 
@@ -60,24 +63,24 @@ export function createAuthRouter({ db, mailer, config }) {
     const ip = clientIp(req);
     await enforce(db(), [{ key: `register:ip:${ip}`, limit: 10, windowSeconds: HOUR }]);
     const input = parse(schemas.register, req.body);
+    // Each sign-up sends an e-mail: limit them per address too, so nobody can flood an inbox.
+    await enforce(db(), [{ key: `register:email:${input.email}`, limit: 3, windowSeconds: HOUR }]);
     const problem = passwordProblem(input.password, input);
     if (problem) throw new AppError(400, problem);
 
+    // Hashed on every path, so the response time does not tell whether the address exists.
+    const passwordHash = await hashPassword(input.password);
     const existing = await db().user.findUnique({ where: { email: input.email } });
-    if (existing) {
-      if (existing.emailVerifiedAt) {
-        const resetToken = await createEmailToken(db(), existing.id, 'RESET_PASSWORD');
-        await mail(existing, 'existing', input.lang, link('/reset-password', resetToken));
-      } else {
-        // Not confirmed yet: the first registration may have had a typo'd password; resend the link.
-        const verifyToken = await createEmailToken(db(), existing.id, 'VERIFY_EMAIL');
-        await mail(existing, 'verify', input.lang, link('/verify-email', verifyToken));
-      }
+    if (existing?.emailVerifiedAt) {
+      const resetToken = await createEmailToken(db(), existing.id, 'RESET_PASSWORD');
+      await mail(existing, 'existing', input.lang, link('/reset-password', resetToken));
     } else {
-      const user = await db().user.create({
-        data: { email: input.email, name: input.name, passwordHash: await hashPassword(input.password) },
-      });
-      const verifyToken = await createEmailToken(db(), user.id, 'VERIFY_EMAIL');
+      // Not confirmed yet (a typo in the first try, or someone else using this address): the
+      // link of this sign-up carries this sign-up's password, applied only when it is opened.
+      const user = existing
+        ? await db().user.update({ where: { id: existing.id }, data: { name: input.name, passwordHash } })
+        : await db().user.create({ data: { email: input.email, name: input.name, passwordHash } });
+      const verifyToken = await createEmailToken(db(), user.id, 'VERIFY_EMAIL', { passwordHash });
       await mail(user, 'verify', input.lang, link('/verify-email', verifyToken));
     }
     res.status(202).json({ status: 'check_email' });
@@ -86,10 +89,16 @@ export function createAuthRouter({ db, mailer, config }) {
   router.post('/verify-email', async (req, res) => {
     await enforce(db(), [{ key: `verify:ip:${clientIp(req)}`, limit: 30, windowSeconds: 10 * MINUTE }]);
     const input = parse(schemas.verify, req.body);
-    const userId = await consumeEmailToken(db(), input.token, 'VERIFY_EMAIL');
-    if (!userId) throw new AppError(400, 'invalid_or_expired_link');
-    const user = await db().user.update({ where: { id: userId }, data: { emailVerifiedAt: new Date() } });
-    await logIn(res, user.id);
+    const used = await consumeEmailToken(db(), input.token, 'VERIFY_EMAIL');
+    if (!used) throw new AppError(400, 'invalid_or_expired_link');
+    const user = await db().user.update({
+      where: { id: used.userId },
+      // The password of the sign-up this link came from (a resent link keeps the current one).
+      data: { emailVerifiedAt: new Date(), ...(used.passwordHash && { passwordHash: used.passwordHash }) },
+    });
+    // The address is confirmed: links from other sign-up attempts must not change it any more.
+    await db().emailToken.deleteMany({ where: { userId: user.id, type: 'VERIFY_EMAIL', usedAt: null } });
+    await logIn(req, res, user.id);
     res.json({ user: publicUser(user) });
   });
 
@@ -123,7 +132,7 @@ export function createAuthRouter({ db, mailer, config }) {
     }
     // Only after the right password, so this does not reveal which addresses exist.
     if (!user.emailVerifiedAt) throw new AppError(403, 'email_not_verified');
-    await logIn(res, user.id);
+    await logIn(req, res, user.id);
     res.json({ user: publicUser(user) });
   });
 
@@ -164,7 +173,7 @@ export function createAuthRouter({ db, mailer, config }) {
       const problem = passwordProblem(input.password, record.user);
       if (problem) throw new AppError(400, problem);
     }
-    const userId = await consumeEmailToken(db(), input.token, 'RESET_PASSWORD');
+    const userId = (await consumeEmailToken(db(), input.token, 'RESET_PASSWORD'))?.userId;
     if (!userId) throw new AppError(400, 'invalid_or_expired_link');
 
     const user = await db().user.update({
@@ -173,7 +182,7 @@ export function createAuthRouter({ db, mailer, config }) {
       data: { passwordHash: await hashPassword(input.password), emailVerifiedAt: record.user.emailVerifiedAt ?? new Date() },
     });
     await db().session.deleteMany({ where: { userId } }); // log out everywhere else
-    await logIn(res, userId);
+    await logIn(req, res, userId);
     res.json({ user: publicUser(user) });
   });
 

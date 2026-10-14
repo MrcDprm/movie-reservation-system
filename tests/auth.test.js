@@ -106,6 +106,43 @@ describe('accounts', { skip: !hasTestDatabase && 'no .env.test' }, () => {
     assert.equal(login.status, 200);
   });
 
+  test('someone who signs up first with my address cannot take over my account', async () => {
+    const ATTACKER = 'kirmizi-ucak-gece-77';
+    const login = (password) => request(app).post('/api/auth/login').send({ email: 'ayse@example.com', password });
+
+    // 1. The attacker registers my address with their password and never confirms it.
+    await register(request(app), { name: 'Saldırgan', password: ATTACKER });
+    // 2. I sign up with my own password and get my own link.
+    await register(request(app));
+    const myLink = tokenFromMail();
+    // 3. The attacker tries again before I open it; another e-mail arrives in my inbox.
+    await register(request(app), { name: 'Saldırgan', password: ATTACKER });
+    const attackersLink = tokenFromMail();
+
+    // My link still works, and it brings my password, not the last one set.
+    await request(app).post('/api/auth/verify-email').send({ token: myLink }).expect(200);
+    await login(PASSWORD).expect(200);
+    assert.equal((await login(ATTACKER)).body.error, 'invalid_credentials');
+    // Once confirmed, the attacker's link cannot change the account any more.
+    await request(app).post('/api/auth/verify-email').send({ token: attackersLink }).expect(400);
+    await login(PASSWORD).expect(200);
+  });
+
+  test('sign-ups are limited per address, so nobody can flood an inbox', async () => {
+    for (let i = 0; i < 3; i++) await register(request(app)).expect(202);
+    const fourth = await register(request(app));
+    assert.equal(fourth.status, 429);
+    assert.equal(outbox.length, 3);
+  });
+
+  test('logging in again replaces the old session instead of piling up sessions', async () => {
+    const agent = await registeredAndVerified();
+    await agent.post('/api/auth/login').send({ email: 'ayse@example.com', password: PASSWORD }).expect(200);
+    await agent.post('/api/auth/login').send({ email: 'ayse@example.com', password: PASSWORD }).expect(200);
+    assert.equal(await prisma.session.count(), 1);
+    await agent.get('/api/auth/me').expect(200);
+  });
+
   test('wrong password and unknown e-mail give the same answer', async () => {
     await registeredAndVerified();
     const wrong = await request(app).post('/api/auth/login').send({ email: 'ayse@example.com', password: 'yanlis-sifre-11' });

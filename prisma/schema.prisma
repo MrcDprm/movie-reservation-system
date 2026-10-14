@@ -55,6 +55,9 @@ model EmailToken {
   user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   usedAt    DateTime?
+  // A sign-up link carries the password chosen in that sign-up, so whoever opens the link in
+  // the inbox gets their own password, not one set by someone who registered the address first.
+  passwordHash String?
   createdAt DateTime       @default(now())
 
   @@index([userId, type])
