@@ -2,10 +2,11 @@
 // so internal details (SQL, stack traces, file paths) never reach the browser.
 
 export class AppError extends Error {
-  constructor(status, code, message = code) {
-    super(message);
+  constructor(status, code, extra = {}) {
+    super(code);
     this.status = status;
     this.code = code; // short, stable, translated by the frontend: "seat_taken", "not_found"...
+    this.extra = extra; // safe extra fields, e.g. which inputs were invalid
   }
 }
 
@@ -17,7 +18,8 @@ export function notFound(req, res) {
 // eslint-disable-next-line no-unused-vars
 export function errorHandler(err, req, res, next) {
   if (err instanceof AppError) {
-    return res.status(err.status).json({ error: err.code });
+    if (err.retryAfter) res.set('Retry-After', String(err.retryAfter));
+    return res.status(err.status).json({ error: err.code, ...err.extra });
   }
   if (err?.type === 'entity.parse.failed' || err?.type === 'entity.too.large') {
     return res.status(err.status ?? 400).json({ error: 'bad_request' });

@@ -169,3 +169,15 @@ model BookingSeat {
   @@unique([showtimeId, hallSeatId])
   @@index([bookingId])
 }
+
+// --- Rate limiting ---
+
+// Fixed-window counters, shared by every serverless instance (memory is not shared on Vercel).
+// Incremented with one atomic INSERT ... ON CONFLICT statement (server/rateLimit.js).
+model RateLimitBucket {
+  key     String   @id // "login:ip:1.2.3.4", "login:email:a@b.c", ...
+  count   Int
+  resetAt DateTime
+
+  @@index([resetAt])
+}

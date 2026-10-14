@@ -4,10 +4,18 @@ import cookieParser from 'cookie-parser';
 import express from 'express';
 import helmet from 'helmet';
 
+import { loadUser } from './auth/middleware.js';
+import { createAuthRouter } from './auth/routes.js';
 import { loadConfig } from './config.js';
+import { getPrisma } from './db.js';
 import { errorHandler, notFound } from './errors.js';
+import { createMailer } from './mail.js';
 
-export function createApp(config = loadConfig()) {
+// `deps` lets tests pass the test database and a fake mailer.
+export function createApp(config = loadConfig(), deps = {}) {
+  const db = () => deps.prisma ?? getPrisma(config.DATABASE_URL); // connects on first use
+  const mailer = deps.mailer ?? createMailer(config);
+
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1); // Vercel's proxy sets the client address and https
@@ -33,6 +41,9 @@ export function createApp(config = loadConfig()) {
   });
 
   app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
+
+  app.use('/api', loadUser(db));
+  app.use('/api/auth', createAuthRouter({ db, mailer, config }));
 
   app.use('/api', notFound);
   app.use(errorHandler);
