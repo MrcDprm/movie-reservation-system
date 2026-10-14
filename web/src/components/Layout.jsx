@@ -100,6 +100,7 @@ function HeaderControls() {
 export default function Layout() {
   const { t } = usePrefs();
   const { user } = useAuth();
+  const isStaff = user?.role === 'STAFF' || user?.role === 'ADMIN';
   const navClass = ({ isActive }) =>
     `text-sm font-semibold ${isActive ? 'text-ink' : 'text-ink-3 hover:text-ink'}`;
 
@@ -118,6 +119,11 @@ export default function Layout() {
                   {t('nav.tickets')}
                 </NavLink>
               )}
+              {isStaff && (
+                <NavLink to="/door" className={navClass}>
+                  {t('nav.door')}
+                </NavLink>
+              )}
             </nav>
           </div>
           <HeaderControls />
@@ -129,6 +135,11 @@ export default function Layout() {
           {user && (
             <NavLink to="/tickets" className={navClass}>
               {t('nav.tickets')}
+            </NavLink>
+          )}
+          {isStaff && (
+            <NavLink to="/door" className={navClass}>
+              {t('nav.door')}
             </NavLink>
           )}
         </nav>

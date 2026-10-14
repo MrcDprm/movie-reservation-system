@@ -38,6 +38,8 @@ function Ticket({ seat, index, count, title, showtime }) {
     <li className="grid justify-items-center gap-4 rounded-xl border border-line bg-surface p-5 text-center">
       <p className="font-mono text-xs text-ink-3">{t('booking.ticketOf', { i: index + 1, n: count })}</p>
       <QrImage code={seat.code} label={t('booking.qrLabel', { seat: seat.label })} />
+      {/* The same code as text, for the door to type in if a screen will not scan. */}
+      <p className="max-w-[15rem] break-all font-mono text-[0.6rem] leading-snug text-ink-3">{seat.code}</p>
       <div>
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-ink-3">{t('booking.seat')}</p>
         <p className="font-display text-4xl font-semibold">{seat.label}</p>

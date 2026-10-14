@@ -23,6 +23,7 @@ export function useAuth() {
     await api('/auth/logout', { method: 'POST' });
     queryClient.setQueryData(['me'], null);
     queryClient.removeQueries({ queryKey: ['bookings'] });
+    queryClient.removeQueries({ queryKey: ['booking'] });
   }, [queryClient]);
 
   return { user: user ?? null, loading: isPending, setUser, logout };
