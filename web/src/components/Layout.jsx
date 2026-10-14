@@ -1,5 +1,6 @@
-import { Link, NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 
+import { useAuth } from '../lib/auth.jsx';
 import { usePrefs } from '../lib/prefs.jsx';
 
 // Every live project links to the others; the current one is highlighted.
@@ -27,10 +28,45 @@ function Logo() {
   );
 }
 
+function Account() {
+  const { t } = usePrefs();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  if (!user) {
+    // Come back to the same page after logging in.
+    const next = location.pathname === '/login' ? '/' : location.pathname;
+    return (
+      <Link to={`/login?next=${encodeURIComponent(next)}`} className="text-sm font-semibold text-ink-2 hover:text-ink">
+        {t('nav.login')}
+      </Link>
+    );
+  }
+  return (
+    <div className="flex items-center gap-3 text-sm">
+      <span className="hidden max-w-[10rem] truncate text-ink-3 md:inline" title={user.email}>
+        {user.name}
+      </span>
+      <button
+        type="button"
+        onClick={async () => {
+          await logout();
+          navigate('/');
+        }}
+        className="font-semibold text-ink-2 hover:text-ink"
+      >
+        {t('nav.logout')}
+      </button>
+    </div>
+  );
+}
+
 function HeaderControls() {
   const { lang, setLang, toggleTheme, t } = usePrefs();
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 sm:gap-3">
+      <Account />
       <div className="flex rounded-full border border-line p-0.5" role="group" aria-label={t('nav.language')}>
         {['tr', 'en'].map((code) => (
           <button
@@ -63,6 +99,7 @@ function HeaderControls() {
 
 export default function Layout() {
   const { t } = usePrefs();
+  const { user } = useAuth();
   const navClass = ({ isActive }) =>
     `text-sm font-semibold ${isActive ? 'text-ink' : 'text-ink-3 hover:text-ink'}`;
 
@@ -76,6 +113,11 @@ export default function Layout() {
               <NavLink to="/" end className={navClass}>
                 {t('nav.program')}
               </NavLink>
+              {user && (
+                <NavLink to="/tickets" className={navClass}>
+                  {t('nav.tickets')}
+                </NavLink>
+              )}
             </nav>
           </div>
           <HeaderControls />

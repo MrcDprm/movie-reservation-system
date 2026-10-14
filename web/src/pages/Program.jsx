@@ -1,7 +1,7 @@
 // The programme: pick a day, see each film's shows that day.
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 import Poster from '../components/Poster.jsx';
 import { api } from '../lib/api.js';
@@ -87,6 +87,8 @@ function MovieRow({ movie, shows }) {
 
 export default function Program() {
   const { t } = usePrefs();
+  const [params] = useSearchParams();
+  const greeting = params.has('welcome') ? t('auth.welcome') : params.has('reset') ? t('auth.reset.done') : null;
   const { data, isPending, error } = useProgramme();
 
   // Days that have at least one show, in order, at most a week.
@@ -116,6 +118,11 @@ export default function Program() {
       <p className="text-xs font-bold uppercase tracking-[0.2em] text-gold">{t('home.eyebrow')}</p>
       <h1 className="mt-2 font-display text-4xl font-semibold tracking-tight sm:text-6xl">{t('home.title')}</h1>
       <p className="mt-4 max-w-2xl text-ink-2">{t('home.lead')}</p>
+      {greeting && (
+        <p role="status" className="mt-6 max-w-2xl rounded-lg border border-ok/40 px-4 py-3 text-sm text-ok">
+          {greeting}
+        </p>
+      )}
 
       <div className="mt-8">
         {isPending && <p className="text-ink-3">{t('home.loading')}</p>}

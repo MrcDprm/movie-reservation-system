@@ -1,6 +1,7 @@
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 
 import Layout from './components/Layout.jsx';
+import { ForgotPassword, Login, Register, ResetPassword, VerifyEmail } from './pages/Account.jsx';
 import Movie from './pages/Movie.jsx';
 import NotFound from './pages/NotFound.jsx';
 import Program from './pages/Program.jsx';
@@ -13,6 +14,11 @@ const router = createBrowserRouter([
       { path: '/', element: <Program /> },
       { path: '/movies/:slug', element: <Movie /> },
       { path: '/showtimes/:id', element: <Showtime /> },
+      { path: '/login', element: <Login /> },
+      { path: '/register', element: <Register /> },
+      { path: '/verify-email', element: <VerifyEmail /> },
+      { path: '/forgot-password', element: <ForgotPassword /> },
+      { path: '/reset-password', element: <ResetPassword /> },
       { path: '*', element: <NotFound /> },
     ],
   },
