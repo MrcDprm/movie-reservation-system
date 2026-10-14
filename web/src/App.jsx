@@ -18,6 +18,7 @@ const router = createBrowserRouter([
       { path: '/tickets', element: <Tickets /> },
       // QR drawing and reading are heavy, so these pages load only when opened.
       { path: '/bookings/:id', lazy: () => import('./pages/Booking.jsx').then((m) => ({ Component: m.default })) },
+      { path: '/admin', lazy: () => import('./pages/Admin.jsx').then((m) => ({ Component: m.default })) },
       { path: '/door', lazy: () => import('./pages/Door.jsx').then((m) => ({ Component: m.default })) },
       { path: '/login', element: <Login /> },
       { path: '/register', element: <Register /> },

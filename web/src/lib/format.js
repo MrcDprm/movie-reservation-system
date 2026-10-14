@@ -17,6 +17,9 @@ export const formatDayNumber = (date, lang) =>
 export const formatPrice = (cents, lang) =>
   new Intl.NumberFormat(locale(lang), { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(cents / 100);
 
+// "%45" in Turkish, "45%" in English.
+export const formatPercent = (share, lang) => new Intl.NumberFormat(locale(lang), { style: 'percent' }).format(share);
+
 // "2026-10-14" for a date in Istanbul, used to group showtimes by day.
 export const dayKey = (date) =>
   new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(date));

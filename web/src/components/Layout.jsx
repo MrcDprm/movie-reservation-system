@@ -124,6 +124,11 @@ export default function Layout() {
                   {t('nav.door')}
                 </NavLink>
               )}
+              {user?.role === 'ADMIN' && (
+                <NavLink to="/admin" className={navClass}>
+                  {t('nav.admin')}
+                </NavLink>
+              )}
             </nav>
           </div>
           <HeaderControls />
@@ -140,6 +145,11 @@ export default function Layout() {
           {isStaff && (
             <NavLink to="/door" className={navClass}>
               {t('nav.door')}
+            </NavLink>
+          )}
+          {user?.role === 'ADMIN' && (
+            <NavLink to="/admin" className={navClass}>
+              {t('nav.admin')}
             </NavLink>
           )}
         </nav>

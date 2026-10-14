@@ -6,6 +6,7 @@ import helmet from 'helmet';
 
 import { loadUser } from './auth/middleware.js';
 import { handleStripeEvent } from './booking/checkout.js';
+import { createAdminRouter } from './admin/routes.js';
 import { createAuthRouter } from './auth/routes.js';
 import { createBookingRouter } from './booking/routes.js';
 import { loadConfig } from './config.js';
@@ -63,6 +64,7 @@ export function createApp(config = loadConfig(), deps = {}) {
   app.use('/api', loadUser(db));
   app.use('/api/auth', createAuthRouter({ db, mailer, config }));
   app.use('/api', createBookingRouter({ db, payments, config }));
+  app.use('/api/admin', createAdminRouter({ db }));
 
   app.use('/api', notFound);
   app.use(errorHandler);
