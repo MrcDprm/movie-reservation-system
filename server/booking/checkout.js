@@ -138,7 +138,7 @@ export async function handleStripeEvent(db, payments, event, ctx, now = new Date
 // --- The customer's bookings ---
 
 const bookingInclude = {
-  showtime: { select: { id: true, startsAt: true, priceCents: true, movie: { select: { slug: true, titleTr: true, titleEn: true, posterInk: true, posterPaper: true } }, hall: { select: { name: true } } } },
+  showtime: { select: { id: true, startsAt: true, priceCents: true, movie: { select: { slug: true, titleTr: true, titleEn: true, runtimeMin: true, posterInk: true, posterPaper: true } }, hall: { select: { name: true } } } },
   seats: { select: { id: true, checkedInAt: true, hallSeat: { select: { row: true, number: true, kind: true } } } },
 };
 

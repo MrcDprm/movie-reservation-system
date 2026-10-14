@@ -122,6 +122,16 @@ export default function Layout() {
           </div>
           <HeaderControls />
         </div>
+        <nav className="flex gap-6 border-t border-line px-4 py-2.5 sm:hidden">
+          <NavLink to="/" end className={navClass}>
+            {t('nav.program')}
+          </NavLink>
+          {user && (
+            <NavLink to="/tickets" className={navClass}>
+              {t('nav.tickets')}
+            </NavLink>
+          )}
+        </nav>
       </header>
 
       <main className="flex-1">
