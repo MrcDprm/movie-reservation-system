@@ -6,6 +6,7 @@ import { usePrefs } from '../lib/prefs.jsx';
 // Every live project links to the others; the current one is highlighted.
 const PROJECTS = [
   ['Seans', 'https://seans.miracdeprem.com'],
+  ['Zarf', 'https://zarf.miracdeprem.com'],
   ['Casus', 'https://spygame.miracdeprem.com'],
   ['KVKK Assistant', 'https://kvkk.miracdeprem.com'],
   ['Crypto Toolkit', 'https://crypto.miracdeprem.com'],
