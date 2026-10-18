@@ -21,7 +21,10 @@ const write = (key, value) => {
   }
 };
 
-const initialLang = () => read('seans-lang', ['tr', 'en'], navigator.language?.startsWith('tr') ? 'tr' : 'en');
+// ?lang=en (the address search engines index for English) wins over the saved choice.
+const urlLang = () => new URLSearchParams(location.search).get('lang');
+const initialLang = () =>
+  ['tr', 'en'].includes(urlLang()) ? urlLang() : read('seans-lang', ['tr', 'en'], navigator.language?.startsWith('tr') ? 'tr' : 'en');
 const initialTheme = () =>
   read('seans-theme', ['dark', 'light'], matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
 
@@ -34,6 +37,12 @@ export function PrefsProvider({ children }) {
 
   const setLang = useCallback((value) => {
     write('seans-lang', value);
+    // An explicit ?lang in the address follows the choice, or it would switch back on reload.
+    const url = new URL(location.href);
+    if (url.searchParams.has('lang')) {
+      url.searchParams.set('lang', value);
+      history.replaceState(history.state, '', url);
+    }
     setLangState(value);
   }, []);
   const toggleTheme = useCallback(() => {

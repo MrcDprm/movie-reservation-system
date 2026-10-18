@@ -5,11 +5,14 @@
   "regions": ["fra1"],
   "crons": [{ "path": "/api/cron/daily", "schedule": "0 1 * * *" }],
   "functions": {
-    "api/index.js": { "maxDuration": 30 }
+    "api/index.js": { "maxDuration": 30, "includeFiles": "dist/app.html" }
   },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    { "source": "/", "destination": "/api" },
+    { "source": "/movies/:slug", "destination": "/api" },
+    { "source": "/sitemap.xml", "destination": "/api" },
+    { "source": "/((?!api/).*)", "destination": "/app.html" }
   ],
   "headers": [
     {
