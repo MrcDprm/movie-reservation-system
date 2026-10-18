@@ -7,6 +7,7 @@ import { usePrefs } from '../lib/prefs.jsx';
 const PROJECTS = [
   ['Seans', 'https://seans.miracdeprem.com'],
   ['Zarf', 'https://zarf.miracdeprem.com'],
+  ['Brain Weight', 'https://brain.miracdeprem.com'],
   ['Casus', 'https://spygame.miracdeprem.com'],
   ['KVKK Assistant', 'https://kvkk.miracdeprem.com'],
   ['Crypto Toolkit', 'https://crypto.miracdeprem.com'],
