@@ -15,6 +15,7 @@ import { getPrisma } from './db.js';
 import { errorHandler, notFound } from './errors.js';
 import { createMailer } from './mail.js';
 import { createPayments } from './payments.js';
+import { createSeoRouter } from './seo.js';
 
 // `deps` lets tests pass the test database, a fake mailer and fake payments.
 export function createApp(config = loadConfig(), deps = {}) {
@@ -69,6 +70,8 @@ export function createApp(config = loadConfig(), deps = {}) {
   app.use('/api/cron', createCronRouter({ db, config }));
 
   app.use('/api', notFound);
+  // The programme, film pages and sitemap (vercel.json sends these paths here).
+  app.use(createSeoRouter({ db, loadTemplate: deps.loadTemplate }));
   app.use(errorHandler);
   return app;
 }
