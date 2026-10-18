@@ -137,9 +137,10 @@ ${urls.join('\n')}
 
 const langOf = (req) => (req.query.lang === 'en' ? 'en' : 'tr');
 
-// The built index.html, read once per function instance (vercel.json includes it).
+// The built page (index.html renamed to app.html, see vite.config.js), read once per function
+// instance; vercel.json includes it in the function.
 let cached;
-const defaultTemplate = () => (cached ??= readFile(join(process.cwd(), 'dist', 'index.html'), 'utf8'));
+const defaultTemplate = () => (cached ??= readFile(join(process.cwd(), 'dist', 'app.html'), 'utf8'));
 
 export function createSeoRouter({ db, loadTemplate = defaultTemplate }) {
   const router = Router();
