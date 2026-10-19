@@ -3,21 +3,8 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { useAuth } from '../lib/auth.jsx';
 import { usePrefs } from '../lib/prefs.jsx';
 
-// Every live project links to the others; the current one is highlighted.
-const PROJECTS = [
-  ['Seans', 'https://seans.miracdeprem.com'],
-  ['Zarf', 'https://zarf.miracdeprem.com'],
-  ['Brain Weight', 'https://brain.miracdeprem.com'],
-  ['Ad Conversion', 'https://conversion.miracdeprem.com'],
-  ['Casus', 'https://spygame.miracdeprem.com'],
-  ['KVKK Assistant', 'https://kvkk.miracdeprem.com'],
-  ['Crypto Toolkit', 'https://crypto.miracdeprem.com'],
-  ['Sahaf', 'https://sahaf.miracdeprem.com'],
-  ['Tic-Tac-Toe', 'https://tictactoe.miracdeprem.com'],
-  ['Hangman', 'https://hangman.miracdeprem.com'],
-  ['Quiz App', 'https://quiz.miracdeprem.com'],
-  ['Weather App', 'https://weather.miracdeprem.com'],
-];
+// Other projects are listed on the portfolio, so this footer never needs updating.
+const PROJECTS_URL = 'https://www.miracdeprem.com/projects';
 
 function Logo() {
   return (
@@ -166,18 +153,10 @@ export default function Layout() {
       <footer className="mt-16 border-t border-line">
         <div className="mx-auto grid max-w-6xl justify-items-center gap-3 px-4 py-8 text-center sm:px-6">
           <p className="max-w-xl text-sm text-ink-3">{t('footer.note')}</p>
-          <nav aria-label={t('footer.projects')} className="flex flex-wrap justify-center gap-x-5 gap-y-1.5 font-mono text-xs">
-            {PROJECTS.map(([name, url]) =>
-              name === 'Seans' ? (
-                <span key={name} aria-current="page" className="font-bold text-ink">
-                  {name}
-                </span>
-              ) : (
-                <a key={name} href={url} className="text-ink-2 hover:text-velvet-strong hover:underline">
-                  {name}
-                </a>
-              ),
-            )}
+          <nav aria-label={t('footer.projects')} className="font-mono text-xs">
+            <a href={PROJECTS_URL} className="text-ink-2 hover:text-velvet-strong hover:underline">
+              {t('footer.otherProjects')}
+            </a>
           </nav>
           <div className="flex flex-wrap justify-center gap-x-5 font-mono text-xs text-ink-3">
             <span>© 2026 Miraç Deprem</span>
