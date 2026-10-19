@@ -12,7 +12,8 @@ export const SITE_URL = 'https://seans.miracdeprem.com';
 
 // Same policy vercel.json gives the static pages (helmet's API policy would block the app).
 export const PAGE_CSP =
-  "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; " +
+  "default-src 'self'; script-src 'self' https://nabiz.miracdeprem.com; style-src 'self'; img-src 'self' data:; font-src 'self'; " +
+  "connect-src 'self' https://nabiz.miracdeprem.com; " +
   "object-src 'none'; base-uri 'self'; form-action 'self' https://checkout.stripe.com; frame-ancestors 'none'";
 
 const TEXT = {
