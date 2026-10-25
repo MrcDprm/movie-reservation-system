@@ -135,13 +135,6 @@ tests/                    Unit and API tests
 - **Testing against a real database.** The API tests run on a separate Neon branch. A helper refuses to run if it would touch the main database.
 - **Reading a camera in the browser.** iPhones have no built-in barcode reader for web pages, so the door page draws camera frames on a canvas a few times a second and decodes them with jsQR. I tested it with a fake camera that shows a ticket.
 
-## Future Plans
-
-- Choosing different ticket types, such as student or child prices.
-- Cancelling a paid booking from the account, with a refund.
-- Wallet passes for Apple Wallet and Google Wallet.
-- A page for staff to see how many guests are already inside.
-
 ## Credits
 
 - All films are in the public domain. The summaries were written for this project, and the posters are generated, not copied.
