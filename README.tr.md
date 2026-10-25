@@ -135,13 +135,6 @@ tests/                    Birim ve API testleri
 - **Gerçek bir veritabanında test etmek.** API testleri ayrı bir Neon dalında çalışıyor. Bir yardımcı fonksiyon, ana veritabanına dokunacaksa çalışmayı reddediyor.
 - **Tarayıcıda kamera okumak.** iPhone'larda web sayfaları için hazır barkod okuyucu yok. Bu yüzden kapı sayfası kamera görüntüsünü saniyede birkaç kez bir canvas'a çizip jsQR ile çözüyor. Bunu, bilet gösteren sahte bir kamerayla test ettim.
 
-## Gelecek Planları
-
-- Öğrenci ya da çocuk gibi farklı bilet türleri.
-- Ödenmiş rezervasyonu hesaptan iade ile iptal etmek.
-- Apple Wallet ve Google Wallet için cüzdan kartları.
-- Görevlilerin içeride kaç kişi olduğunu görebileceği bir sayfa.
-
 ## Katkılar
 
 - Bütün filmler kamu malıdır (public domain). Özetler bu proje için yazıldı; afişler kopyalanmadı, üretiliyor.
