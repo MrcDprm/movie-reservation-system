@@ -40,10 +40,13 @@ test('password rules', () => {
 
 test('e-mail escapes the name the user typed', () => {
   const mail = buildEmail({
-    kind: 'verify', lang: 'tr', name: '<img src=x onerror=alert(1)>', link: 'https://x.test/verify-email?token=abc', appName: 'Seans',
+    kind: 'reset', lang: 'tr', name: '<img src=x onerror=alert(1)>', link: 'https://x.test/reset-password?token=abc', appName: 'Seans',
   });
   assert.doesNotMatch(mail.html, /<img/);
   assert.match(mail.html, /&lt;img/);
-  assert.match(mail.text, /https:\/\/x\.test\/verify-email\?token=abc/);
+  assert.match(mail.text, /https:\/\/x\.test\/reset-password\?token=abc/);
+  // The sign-up e-mail carries no name at all: it is sent before anyone has chosen one.
+  const verify = buildEmail({ kind: 'verify', lang: 'tr', name: 'Saldırgan', link: 'l', appName: 'Seans' });
+  assert.doesNotMatch(verify.text, /Saldırgan/);
   assert.equal(buildEmail({ kind: 'reset', lang: 'en', name: 'A', link: 'l', appName: 'X' }).subject, 'Password reset');
 });

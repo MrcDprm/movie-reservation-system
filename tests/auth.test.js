@@ -24,12 +24,15 @@ describe('accounts', { skip: !hasTestDatabase && 'no .env.test' }, () => {
   // The token from the last e-mail's link.
   const tokenFromMail = () => outbox.at(-1).text.match(/token=([\w-]+)/)[1];
 
-  const register = (agent, body = {}) =>
-    agent.post('/api/auth/register').send({ email: 'ayse@example.com', name: 'Ayşe', password: PASSWORD, ...body });
+  const register = (agent, body = {}) => agent.post('/api/auth/register').send({ email: 'ayse@example.com', ...body });
+
+  // Opens a sign-up link: the person holding the inbox chooses the name and password.
+  const complete = (agent, token, body = {}) =>
+    agent.post('/api/auth/verify-email').send({ token, name: 'Ayşe', password: PASSWORD, ...body });
 
   async function registeredAndVerified(agent = request.agent(app)) {
     await register(agent);
-    await agent.post('/api/auth/verify-email').send({ token: tokenFromMail() });
+    await complete(agent, tokenFromMail());
     return agent;
   }
 
@@ -48,7 +51,7 @@ describe('accounts', { skip: !hasTestDatabase && 'no .env.test' }, () => {
     await prisma?.$disconnect();
   });
 
-  test('register sends a link; login waits for it', async () => {
+  test('register asks only for the address and sets nothing on the account', async () => {
     const agent = request.agent(app);
     const response = await register(agent, { email: '  Ayse@Example.COM ' });
     assert.equal(response.status, 202);
@@ -57,22 +60,25 @@ describe('accounts', { skip: !hasTestDatabase && 'no .env.test' }, () => {
 
     const user = await prisma.user.findUnique({ where: { email: 'ayse@example.com' } }); // normalised
     assert.ok(user);
-    assert.notEqual(user.passwordHash, PASSWORD);
+    assert.equal(user.passwordHash, null);
+    assert.equal(user.name, '');
     assert.equal(outbox.length, 1);
     assert.match(outbox[0].text, new RegExp(`${ORIGIN}/verify-email\\?token=`));
 
+    // No password exists yet, so no password can log in.
     const login = await agent.post('/api/auth/login').send({ email: 'ayse@example.com', password: PASSWORD });
-    assert.deepEqual([login.status, login.body], [403, { error: 'email_not_verified' }]);
+    assert.deepEqual([login.status, login.body], [401, { error: 'invalid_credentials' }]);
   });
 
-  test('verify link logs in with a safe cookie, and works only once', async () => {
+  test('the link sets name and password, logs in with a safe cookie, and works only once', async () => {
     const agent = request.agent(app);
     await register(agent);
     const token = tokenFromMail();
 
-    const verified = await agent.post('/api/auth/verify-email').send({ token });
+    const verified = await complete(agent, token);
     assert.equal(verified.status, 200);
     assert.equal(verified.body.user.emailVerified, true);
+    assert.equal(verified.body.user.name, 'Ayşe');
     assert.equal(verified.body.user.passwordHash, undefined);
     const cookie = verified.headers['set-cookie'][0];
     assert.match(cookie, /^sid=/);
@@ -81,23 +87,34 @@ describe('accounts', { skip: !hasTestDatabase && 'no .env.test' }, () => {
 
     const me = await agent.get('/api/auth/me');
     assert.equal(me.body.user.email, 'ayse@example.com');
+    await request(app).post('/api/auth/login').send({ email: 'ayse@example.com', password: PASSWORD }).expect(200);
 
-    const again = await request(app).post('/api/auth/verify-email').send({ token });
+    const again = await complete(request(app), token, { password: 'baska-bir-sifre-99' });
     assert.deepEqual([again.status, again.body], [400, { error: 'invalid_or_expired_link' }]);
+  });
+
+  test('a weak password on the link page can be corrected; the link is not used up', async () => {
+    await register(request(app));
+    const token = tokenFromMail();
+    const weak = await complete(request(app), token, { password: 'Password123' });
+    assert.deepEqual([weak.status, weak.body], [400, { error: 'password_too_common' }]);
+    const personal = await complete(request(app), token, { name: 'Ayşe Kaya', password: 'kaya-sabah-treni-42' });
+    assert.equal(personal.body.error, 'password_contains_personal_info');
+    await complete(request(app), token).expect(200);
   });
 
   test('cookie is Secure in production', async () => {
     app = makeApp({ NODE_ENV: 'production', RESEND_API_KEY: 'test', STRIPE_SECRET_KEY: 'sk_test_x', STRIPE_WEBHOOK_SECRET: 'whsec_x', TICKET_SECRET: 'x'.repeat(32), CRON_SECRET: 'c'.repeat(32) });
     const agent = request.agent(app);
     await register(agent);
-    const verified = await agent.post('/api/auth/verify-email').send({ token: tokenFromMail() });
+    const verified = await complete(agent, tokenFromMail());
     assert.match(verified.headers['set-cookie'][0], /Secure/);
   });
 
   test('registering an existing address reveals nothing', async () => {
     await registeredAndVerified();
     outbox = [];
-    const second = await register(request(app), { name: 'Saldırgan', password: 'baska-bir-sifre-99' });
+    const second = await register(request(app));
     assert.deepEqual([second.status, second.body], [202, { status: 'check_email' }]);
     // The real owner is told, with a reset link; the password is unchanged.
     assert.equal(outbox.length, 1);
@@ -106,26 +123,45 @@ describe('accounts', { skip: !hasTestDatabase && 'no .env.test' }, () => {
     assert.equal(login.status, 200);
   });
 
-  test('someone who signs up first with my address cannot take over my account', async () => {
-    const ATTACKER = 'kirmizi-ucak-gece-77';
-    const login = (password) => request(app).post('/api/auth/login').send({ email: 'ayse@example.com', password });
+  // Account pre-hijacking: someone signs up with my address before or after me. Whichever link
+  // in my inbox I open, the account must get my name and my password, and theirs must not work.
+  for (const order of ['attacker first', 'attacker last']) {
+    test(`a sign-up with my address by someone else cannot take over my account (${order})`, async () => {
+      const ATTACKER = 'kirmizi-ucak-gece-77';
+      const login = (password) => request(app).post('/api/auth/login').send({ email: 'ayse@example.com', password });
 
-    // 1. The attacker registers my address with their password and never confirms it.
-    await register(request(app), { name: 'Saldırgan', password: ATTACKER });
-    // 2. I sign up with my own password and get my own link.
+      if (order === 'attacker first') await register(request(app));
+      await register(request(app)); // my own sign-up
+      if (order === 'attacker last') await register(request(app));
+      // The newest e-mail in my inbox may be the one the attacker triggered; I open that one.
+      const newest = tokenFromMail();
+      const older = outbox.at(-2).text.match(/token=([\w-]+)/)[1];
+
+      await complete(request(app), newest).expect(200);
+      await login(PASSWORD).expect(200);
+      assert.equal((await login(ATTACKER)).body.error, 'invalid_credentials');
+      assert.equal((await prisma.user.findUnique({ where: { email: 'ayse@example.com' } })).name, 'Ayşe');
+      // Once the account is set up, no other sign-up link can change it.
+      const late = await complete(request(app), older, { name: 'Saldırgan', password: ATTACKER });
+      assert.equal(late.status, 400);
+      await login(PASSWORD).expect(200);
+    });
+  }
+
+  test('a resent link also lets only the inbox owner choose the password', async () => {
     await register(request(app));
-    const myLink = tokenFromMail();
-    // 3. The attacker tries again before I open it; another e-mail arrives in my inbox.
-    await register(request(app), { name: 'Saldırgan', password: ATTACKER });
-    const attackersLink = tokenFromMail();
+    await request(app).post('/api/auth/resend-verification').send({ email: 'ayse@example.com' }).expect(202);
+    await complete(request(app), tokenFromMail()).expect(200);
+    await request(app).post('/api/auth/login').send({ email: 'ayse@example.com', password: PASSWORD }).expect(200);
+  });
 
-    // My link still works, and it brings my password, not the last one set.
-    await request(app).post('/api/auth/verify-email').send({ token: myLink }).expect(200);
-    await login(PASSWORD).expect(200);
-    assert.equal((await login(ATTACKER)).body.error, 'invalid_credentials');
-    // Once confirmed, the attacker's link cannot change the account any more.
-    await request(app).post('/api/auth/verify-email').send({ token: attackersLink }).expect(400);
-    await login(PASSWORD).expect(200);
+  test('forgot-password on an unfinished sign-up sends the sign-up link, not a reset link', async () => {
+    await register(request(app));
+    outbox = [];
+    await request(app).post('/api/auth/forgot-password').send({ email: 'ayse@example.com' }).expect(202);
+    assert.equal(outbox.length, 1);
+    assert.match(outbox[0].text, /\/verify-email\?token=/);
+    await complete(request(app), tokenFromMail()).expect(200);
   });
 
   test('sign-ups are limited per address, so nobody can flood an inbox', async () => {
@@ -151,14 +187,15 @@ describe('accounts', { skip: !hasTestDatabase && 'no .env.test' }, () => {
     assert.deepEqual([unknown.status, unknown.body], [401, { error: 'invalid_credentials' }]);
   });
 
-  test('weak password and bad input are refused', async () => {
-    const weak = await register(request(app), { password: 'Password123' });
-    assert.deepEqual([weak.status, weak.body], [400, { error: 'password_too_common' }]);
-    const bad = await request(app).post('/api/auth/register').send({ email: 'not-an-email', name: '', password: 1 });
-    assert.equal(bad.status, 400);
-    assert.equal(bad.body.error, 'invalid_input');
-    assert.deepEqual(bad.body.fields.sort(), ['email', 'name', 'password']);
+  test('bad input is refused', async () => {
+    const bad = await request(app).post('/api/auth/register').send({ email: 'not-an-email' });
+    assert.deepEqual([bad.status, bad.body.error, bad.body.fields], [400, 'invalid_input', ['email']]);
     assert.equal(await prisma.user.count(), 0);
+
+    await register(request(app));
+    const empty = await request(app).post('/api/auth/verify-email').send({ token: tokenFromMail(), name: '', password: 1 });
+    assert.equal(empty.body.error, 'invalid_input');
+    assert.deepEqual(empty.body.fields.sort(), ['name', 'password']);
   });
 
   test('logout ends the session on the server', async () => {

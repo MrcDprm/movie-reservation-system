@@ -2,7 +2,9 @@
 //
 // No endpoint reveals whether an e-mail is registered: register, resend and forgot always
 // answer 202 "check your e-mail". The owner of an existing address gets a notice instead.
-// Login works only after the address is confirmed; confirming it also logs the user in.
+// Sign-up asks only for the address. Name and password are chosen on the page the link opens,
+// so only the person holding the inbox can set them (no one can pre-register someone else's
+// address with a password of their own). Opening that page confirms the address and logs in.
 import { Router } from 'express';
 import { z } from 'zod';
 
@@ -16,6 +18,7 @@ import {
   consumeEmailToken,
   createEmailToken,
   createSession,
+  findEmailToken,
   hashToken,
   sessionCookieOptions,
 } from './tokens.js';
@@ -25,10 +28,10 @@ const lang = z.enum(['tr', 'en']).default('tr');
 const token = z.string().min(20).max(100);
 
 const schemas = {
-  register: z.object({ email, name: z.string().trim().min(1).max(60), password: z.string().max(200), lang }),
+  register: z.object({ email, lang }),
   login: z.object({ email, password: z.string().max(200) }),
   emailOnly: z.object({ email, lang }),
-  verify: z.object({ token }),
+  verify: z.object({ token, name: z.string().trim().min(1).max(60), password: z.string().max(200) }),
   reset: z.object({ token, password: z.string().max(200) }),
 };
 
@@ -65,22 +68,16 @@ export function createAuthRouter({ db, mailer, config }) {
     const input = parse(schemas.register, req.body);
     // Each sign-up sends an e-mail: limit them per address too, so nobody can flood an inbox.
     await enforce(db(), [{ key: `register:email:${input.email}`, limit: 3, windowSeconds: HOUR }]);
-    const problem = passwordProblem(input.password, input);
-    if (problem) throw new AppError(400, problem);
 
-    // Hashed on every path, so the response time does not tell whether the address exists.
-    const passwordHash = await hashPassword(input.password);
     const existing = await db().user.findUnique({ where: { email: input.email } });
     if (existing?.emailVerifiedAt) {
       const resetToken = await createEmailToken(db(), existing.id, 'RESET_PASSWORD');
       await mail(existing, 'existing', input.lang, link('/reset-password', resetToken));
     } else {
-      // Not confirmed yet (a typo in the first try, or someone else using this address): the
-      // link of this sign-up carries this sign-up's password, applied only when it is opened.
-      const user = existing
-        ? await db().user.update({ where: { id: existing.id }, data: { name: input.name, passwordHash } })
-        : await db().user.create({ data: { email: input.email, name: input.name, passwordHash } });
-      const verifyToken = await createEmailToken(db(), user.id, 'VERIFY_EMAIL', { passwordHash });
+      // Not confirmed yet (a first try, or someone else typing this address): nothing about the
+      // account is set here, so a sign-up form cannot plant a name or password on it.
+      const user = existing ?? (await db().user.create({ data: { email: input.email, name: '' } }));
+      const verifyToken = await createEmailToken(db(), user.id, 'VERIFY_EMAIL');
       await mail(user, 'verify', input.lang, link('/verify-email', verifyToken));
     }
     res.status(202).json({ status: 'check_email' });
@@ -89,14 +86,21 @@ export function createAuthRouter({ db, mailer, config }) {
   router.post('/verify-email', async (req, res) => {
     await enforce(db(), [{ key: `verify:ip:${clientIp(req)}`, limit: 30, windowSeconds: 10 * MINUTE }]);
     const input = parse(schemas.verify, req.body);
-    const used = await consumeEmailToken(db(), input.token, 'VERIFY_EMAIL');
-    if (!used) throw new AppError(400, 'invalid_or_expired_link');
+    const record = await findEmailToken(db(), input.token, 'VERIFY_EMAIL');
+    // An address that is already confirmed is set up; a leftover sign-up link must not change it.
+    if (!record || record.user.emailVerifiedAt) throw new AppError(400, 'invalid_or_expired_link');
+    // Check the password before using up the link, so a weak one can be retried.
+    const problem = passwordProblem(input.password, { email: record.user.email, name: input.name });
+    if (problem) throw new AppError(400, problem);
+    const passwordHash = await hashPassword(input.password);
+
+    const userId = await consumeEmailToken(db(), input.token, 'VERIFY_EMAIL');
+    if (!userId) throw new AppError(400, 'invalid_or_expired_link');
     const user = await db().user.update({
-      where: { id: used.userId },
-      // The password of the sign-up this link came from (a resent link keeps the current one).
-      data: { emailVerifiedAt: new Date(), ...(used.passwordHash && { passwordHash: used.passwordHash }) },
+      where: { id: userId },
+      data: { name: input.name, passwordHash, emailVerifiedAt: new Date() },
     });
-    // The address is confirmed: links from other sign-up attempts must not change it any more.
+    // The address is confirmed: other sign-up links for it are no longer needed.
     await db().emailToken.deleteMany({ where: { userId: user.id, type: 'VERIFY_EMAIL', usedAt: null } });
     await logIn(req, res, user.id);
     res.json({ user: publicUser(user) });
@@ -123,7 +127,8 @@ export function createAuthRouter({ db, mailer, config }) {
       { key: `login:email:${input.email}`, limit: 10, windowSeconds: 10 * MINUTE },
     ]);
     const user = await db().user.findUnique({ where: { email: input.email } });
-    if (!user) {
+    // Unknown address, or a sign-up whose link was never opened (no password yet).
+    if (!user?.passwordHash) {
       await burnPasswordCheck(input.password); // same timing as a wrong password
       throw new AppError(401, 'invalid_credentials');
     }
@@ -154,9 +159,14 @@ export function createAuthRouter({ db, mailer, config }) {
       { key: `forgot:email:${input.email}`, limit: 3, windowSeconds: HOUR },
     ]);
     const user = await db().user.findUnique({ where: { email: input.email } });
-    if (user) {
+    if (user?.passwordHash) {
       const resetToken = await createEmailToken(db(), user.id, 'RESET_PASSWORD');
       await mail(user, 'reset', input.lang, link('/reset-password', resetToken));
+    } else if (user) {
+      // A sign-up that was never finished has no password to reset: send the sign-up link again,
+      // where the name is chosen too.
+      const verifyToken = await createEmailToken(db(), user.id, 'VERIFY_EMAIL');
+      await mail(user, 'verify', input.lang, link('/verify-email', verifyToken));
     }
     res.status(202).json({ status: 'check_email' });
   });
@@ -173,7 +183,7 @@ export function createAuthRouter({ db, mailer, config }) {
       const problem = passwordProblem(input.password, record.user);
       if (problem) throw new AppError(400, problem);
     }
-    const userId = (await consumeEmailToken(db(), input.token, 'RESET_PASSWORD'))?.userId;
+    const userId = await consumeEmailToken(db(), input.token, 'RESET_PASSWORD');
     if (!userId) throw new AppError(400, 'invalid_or_expired_link');
 
     const user = await db().user.update({

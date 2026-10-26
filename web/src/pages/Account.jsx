@@ -1,6 +1,6 @@
 // Account pages: log in, register, confirm e-mail, forgot and reset password.
 // The server decides everything; these pages only send the form and show its answer.
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { AuthCard, Field, Notice, Submit, TextLink, safeNext } from '../components/Form.jsx';
@@ -80,13 +80,13 @@ export function Login() {
   );
 }
 
+// Only the address here; name and password are chosen on the page the e-mailed link opens.
 export function Register() {
   const { t, lang } = usePrefs();
-  const [password, setPassword] = useState('');
   const [sentTo, setSentTo] = useState(null);
 
   const { busy, errorText, run } = useSubmit(async (form) => {
-    await api('/auth/register', { method: 'POST', body: { name: form.name, email: form.email, password: form.password, lang } });
+    await api('/auth/register', { method: 'POST', body: { email: form.email, lang } });
     setSentTo(form.email);
   });
 
@@ -109,8 +109,47 @@ export function Register() {
       }
     >
       <form onSubmit={run} className="grid gap-4" noValidate>
-        <Field label={t('auth.name')} name="name" autoComplete="name" required maxLength={60} />
+        <p className="text-sm text-ink-2">{t('auth.register.text')}</p>
         <Field label={t('auth.email')} name="email" type="email" autoComplete="email" required />
+        {errorText && <Notice>{errorText}</Notice>}
+        <Submit busy={busy}>{t('auth.register.submit')}</Submit>
+      </form>
+    </AuthCard>
+  );
+}
+
+// The page the sign-up link opens: whoever holds the inbox chooses the name and password here.
+export function VerifyEmail() {
+  const { t } = usePrefs();
+  const { setUser } = useAuth();
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const [password, setPassword] = useState('');
+  const { busy, error, errorText, run } = useSubmit(async (form) => {
+    const { user } = await api('/auth/verify-email', {
+      method: 'POST',
+      body: { token: params.get('token') ?? '', name: form.name, password: form.password },
+    });
+    setUser(user);
+    navigate('/?welcome=1', { replace: true });
+  });
+
+  if (error?.code === 'invalid_or_expired_link') {
+    return (
+      <AuthCard title={t('auth.verify.title')}>
+        <Notice>{errorText}</Notice>
+        <p className="mt-4 text-sm text-ink-2">
+          {t('auth.verify.again')} <TextLink to="/register">{t('auth.register.title')}</TextLink>
+        </p>
+      </AuthCard>
+    );
+  }
+
+  return (
+    <AuthCard title={t('auth.verify.title')}>
+      <form onSubmit={run} className="grid gap-4" noValidate>
+        <p className="text-sm text-ink-2">{t('auth.verify.text')}</p>
+        <Field label={t('auth.name')} name="name" autoComplete="name" required maxLength={60} />
         <Field
           label={t('auth.password')}
           name="password"
@@ -123,44 +162,8 @@ export function Register() {
           hint={passwordHint(password, t)}
         />
         {errorText && <Notice>{errorText}</Notice>}
-        <Submit busy={busy}>{t('auth.register.submit')}</Submit>
+        <Submit busy={busy}>{t('auth.verify.submit')}</Submit>
       </form>
-    </AuthCard>
-  );
-}
-
-export function VerifyEmail() {
-  const { t } = usePrefs();
-  const { setUser } = useAuth();
-  const navigate = useNavigate();
-  const [params] = useSearchParams();
-  const [failed, setFailed] = useState(false);
-  const started = useRef(false);
-
-  useEffect(() => {
-    // The link works once; React runs effects twice in development, so guard against a second call.
-    if (started.current) return;
-    started.current = true;
-    api('/auth/verify-email', { method: 'POST', body: { token: params.get('token') ?? '' } })
-      .then(({ user }) => {
-        setUser(user);
-        navigate('/?welcome=1', { replace: true });
-      })
-      .catch(() => setFailed(true));
-  }, [params, setUser, navigate]);
-
-  return (
-    <AuthCard title={t('auth.verify.title')}>
-      {failed ? (
-        <>
-          <Notice>{t('error.invalid_or_expired_link')}</Notice>
-          <p className="mt-4 text-sm text-ink-2">
-            {t('auth.verify.again')} <TextLink to="/login">{t('auth.login.title')}</TextLink>
-          </p>
-        </>
-      ) : (
-        <p className="text-ink-2">{t('auth.verify.working')}</p>
-      )}
     </AuthCard>
   );
 }
