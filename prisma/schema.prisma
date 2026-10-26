@@ -57,9 +57,6 @@ model EmailToken {
   user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   usedAt    DateTime?
-  // No longer read or written (sign-up links carry no password). Dropped in the next migration,
-  // once the code that still writes it is no longer live.
-  passwordHash String?
   createdAt DateTime       @default(now())
 
   @@index([userId, type])
