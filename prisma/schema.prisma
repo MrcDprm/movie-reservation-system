@@ -18,7 +18,9 @@ enum Role {
 model User {
   id              String       @id @default(cuid())
   email           String       @unique // stored lower-cased
-  passwordHash    String
+  // Empty until the sign-up link is opened: name and password are chosen on that page, by
+  // whoever holds the inbox, never by whoever typed the address into the sign-up form.
+  passwordHash    String?
   name            String
   role            Role         @default(CUSTOMER)
   emailVerifiedAt DateTime?
@@ -55,8 +57,8 @@ model EmailToken {
   user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   usedAt    DateTime?
-  // A sign-up link carries the password chosen in that sign-up, so whoever opens the link in
-  // the inbox gets their own password, not one set by someone who registered the address first.
+  // No longer read or written (sign-up links carry no password). Dropped in the next migration,
+  // once the code that still writes it is no longer live.
   passwordHash String?
   createdAt DateTime       @default(now())
 

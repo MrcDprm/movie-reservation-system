@@ -29,20 +29,27 @@ export async function createSession(prisma, userId, now = new Date()) {
 
 const EMAIL_TOKEN_TTL = { VERIFY_EMAIL: 24 * 3_600_000, RESET_PASSWORD: 3_600_000 };
 
-// `passwordHash`: the password chosen in the sign-up that sent this link (sign-up links only).
-export async function createEmailToken(prisma, userId, type, { passwordHash = null, now = new Date() } = {}) {
-  // Only the newest reset link works. Sign-up links are kept: each carries its own password,
-  // and a later sign-up by someone else must not cancel the owner's own link.
+export async function createEmailToken(prisma, userId, type, now = new Date()) {
+  // Only the newest reset link works. Sign-up links are kept, so a later sign-up by someone
+  // else cannot cancel the link already sitting in the owner's inbox.
   if (type === 'RESET_PASSWORD') await prisma.emailToken.deleteMany({ where: { userId, type, usedAt: null } });
   const token = newToken();
   await prisma.emailToken.create({
-    data: { tokenHash: hashToken(token), type, userId, passwordHash, expiresAt: new Date(now.getTime() + EMAIL_TOKEN_TTL[type]) },
+    data: { tokenHash: hashToken(token), type, userId, expiresAt: new Date(now.getTime() + EMAIL_TOKEN_TTL[type]) },
   });
   return token;
 }
 
-// Marks the token used and returns { userId, passwordHash }, or null if it is unknown, used or
-// expired. updateMany with usedAt: null makes it single-use even if clicked twice at once.
+// The link's record with its user, without using it up (a form can still be corrected);
+// null if it is unknown, of another kind, used or expired.
+export async function findEmailToken(prisma, token, type, now = new Date()) {
+  const record = await prisma.emailToken.findUnique({ where: { tokenHash: hashToken(token) }, include: { user: true } });
+  if (!record || record.type !== type || record.usedAt || record.expiresAt <= now) return null;
+  return record;
+}
+
+// Marks the token used and returns its user id, or null if it is unknown, used or expired.
+// updateMany with usedAt: null makes it single-use even if the link is clicked twice at once.
 export async function consumeEmailToken(prisma, token, type, now = new Date()) {
   const record = await prisma.emailToken.findUnique({ where: { tokenHash: hashToken(token) } });
   if (!record || record.type !== type || record.expiresAt <= now) return null;
@@ -50,5 +57,5 @@ export async function consumeEmailToken(prisma, token, type, now = new Date()) {
     where: { id: record.id, usedAt: null },
     data: { usedAt: now },
   });
-  return count === 1 ? { userId: record.userId, passwordHash: record.passwordHash } : null;
+  return count === 1 ? record.userId : null;
 }

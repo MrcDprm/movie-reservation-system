@@ -7,9 +7,10 @@ const escapeHtml = (value) =>
 const TEXTS = {
   tr: {
     verify: {
-      subject: 'E-posta adresini doğrula',
-      lines: (name) => [`Merhaba ${name},`, 'Hesabını etkinleştirmek için bu bağlantıyı aç. Bağlantı 24 saat geçerli.'],
-      button: 'E-postamı doğrula',
+      subject: 'Hesabını oluştur',
+      // No name here: it is chosen on the page this link opens.
+      lines: () => ['Merhaba,', 'Hesabını oluşturmak için bu bağlantıyı aç; adını ve şifreni orada belirleyeceksin. Bağlantı 24 saat geçerli.', 'Bu isteği sen yapmadıysan bu e-postayı yok sayabilirsin.'],
+      button: 'Hesabımı oluştur',
     },
     reset: {
       subject: 'Şifre sıfırlama',
@@ -24,9 +25,9 @@ const TEXTS = {
   },
   en: {
     verify: {
-      subject: 'Confirm your e-mail address',
-      lines: (name) => [`Hello ${name},`, 'Open this link to activate your account. It is valid for 24 hours.'],
-      button: 'Confirm my e-mail',
+      subject: 'Create your account',
+      lines: () => ['Hello,', 'Open this link to create your account; you will choose your name and password there. It is valid for 24 hours.', 'If you did not ask for this, you can ignore this e-mail.'],
+      button: 'Create my account',
     },
     reset: {
       subject: 'Password reset',
