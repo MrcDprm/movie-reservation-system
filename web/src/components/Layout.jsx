@@ -4,7 +4,6 @@ import { useAuth } from '../lib/auth.jsx';
 import { usePrefs } from '../lib/prefs.jsx';
 
 // Other projects are listed on the portfolio, so this footer never needs updating.
-const PROJECTS_URL = 'https://www.miracdeprem.com/projects';
 
 function Logo() {
   return (
@@ -153,20 +152,7 @@ export default function Layout() {
       <footer className="mt-16 border-t border-line">
         <div className="mx-auto grid max-w-6xl justify-items-center gap-3 px-4 py-8 text-center sm:px-6">
           <p className="max-w-xl text-sm text-ink-3">{t('footer.note')}</p>
-          <nav aria-label={t('footer.projects')} className="font-mono text-xs">
-            <a href={PROJECTS_URL} className="text-ink-2 hover:text-velvet-strong hover:underline">
-              {t('footer.otherProjects')}
-            </a>
-          </nav>
-          <div className="flex flex-wrap justify-center gap-x-5 font-mono text-xs text-ink-3">
-            <span>© 2026 Miraç Deprem</span>
-            <a href="https://www.miracdeprem.com" className="text-ink-2 hover:underline">
-              {t('footer.portfolio')}
-            </a>
-            <a href="https://github.com/MrcDprm/movie-reservation-system" className="text-ink-2 hover:underline">
-              {t('footer.source')}
-            </a>
-          </div>
+          <p className="font-mono text-xs text-ink-3">© {new Date().getFullYear()} Miraç Deprem</p>
         </div>
       </footer>
     </div>
